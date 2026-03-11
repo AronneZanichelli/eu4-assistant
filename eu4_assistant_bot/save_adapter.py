@@ -38,12 +38,12 @@ class SaveSnapshotAdapter:
 
         payload: dict[str, str] = {}
         for line in content.splitlines():
-            striped = line.strip()
-            if not striped or striped.startswith("#"):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
                 continue
-            if "=" not in striped:
+            if "=" not in stripped:
                 continue
-            key, value = striped.split("=", maxsplit=1)
+            key, value = stripped.split("=", maxsplit=1)
             payload[key.strip()] = value.strip()
 
         if "timestamp" not in payload:
@@ -53,35 +53,39 @@ class SaveSnapshotAdapter:
             timestamp=payload["timestamp"],
             country=payload.get("country", "UNK"),
             economy=EconomyState(
-                treasury=self._to_float(payload.get("treasury"), default=0.0),
-                income=self._to_float(payload.get("income"), default=0.0),
-                expenses=self._to_float(payload.get("expenses"), default=0.0),
-                debt=self._to_float(payload.get("debt"), default=0.0),
+                treasury=self._to_float(payload.get("treasury"), default=0.0, field_name="treasury"),
+                income=self._to_float(payload.get("income"), default=0.0, field_name="income"),
+                expenses=self._to_float(payload.get("expenses"), default=0.0, field_name="expenses"),
+                debt=self._to_float(payload.get("debt"), default=0.0, field_name="debt"),
             ),
             military=MilitaryState(
-                force_limit=self._to_int(payload.get("force_limit"), default=0),
-                manpower=self._to_int(payload.get("manpower"), default=0),
+                force_limit=self._to_int(payload.get("force_limit"), default=0, field_name="force_limit"),
+                manpower=self._to_int(payload.get("manpower"), default=0, field_name="manpower"),
             ),
             risk=RiskState(
-                coalition=self._to_float(payload.get("coalition"), default=0.0),
-                rebels=self._to_float(payload.get("rebels"), default=0.0),
+                coalition=self._to_float(payload.get("coalition"), default=0.0, field_name="coalition"),
+                rebels=self._to_float(payload.get("rebels"), default=0.0, field_name="rebels"),
             ),
         )
 
     @staticmethod
-    def _to_float(raw: str | None, default: float) -> float:
-        if raw is None:
+    def _to_float(raw: str | None, default: float, field_name: str = "") -> float:
+        if raw is None or raw.strip() == "":
             return default
         try:
-            return float(raw)
+            return float(raw.strip())
         except ValueError as exc:
-            raise SaveAdapterError(f"Invalid numeric value in save extract: '{raw}'") from exc
+            raise SaveAdapterError(
+                f"Invalid numeric value in save extract for field '{field_name}': '{raw}'"
+            ) from exc
 
     @staticmethod
-    def _to_int(raw: str | None, default: int) -> int:
-        if raw is None:
+    def _to_int(raw: str | None, default: int, field_name: str = "") -> int:
+        if raw is None or raw.strip() == "":
             return default
         try:
-            return int(raw)
+            return int(raw.strip())
         except ValueError as exc:
-            raise SaveAdapterError(f"Invalid integer value in save extract: '{raw}'") from exc
+            raise SaveAdapterError(
+                f"Invalid integer value in save extract for field '{field_name}': '{raw}'"
+            ) from exc
