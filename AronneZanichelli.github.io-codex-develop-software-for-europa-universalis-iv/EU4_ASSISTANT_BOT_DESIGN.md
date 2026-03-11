@@ -244,7 +244,7 @@ Durante una guerra attiva il military bot gestisce:
 
 **Trattative di pace:** sempre escluse dall'automazione. Il bot si ferma, notifica l'utente e aspetta conferma prima di procedere. Rientra nelle "azioni critiche" con possibilità di annulla.
 
-**Comportamento con EU4 in pausa:** il bot rileva lo stato di pausa (nessun aggiornamento autosave) e rimane in attesa senza tentare azioni. Riprende automaticamente al prossimo autosave ricevuto.
+**Comportamento con EU4 in pausa:** vedi sezione 5.5 — il bot entra in stato `pausa automatica` e riprende al primo nuovo autosave.
 
 **Activity feed:** ogni azione eseguita dal bot appare in tempo reale nel pannello Advisor (banner compatto sopra le recommendation cards) con: tipo azione, target, stato (in corso / completata / fallita).
 

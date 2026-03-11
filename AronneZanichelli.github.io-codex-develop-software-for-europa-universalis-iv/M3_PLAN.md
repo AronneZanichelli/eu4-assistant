@@ -114,7 +114,14 @@ country_event = {
     id = eu4_assistant.1
     hidden = yes
     is_triggered_only = yes
-    option = { name = eu4_assistant.1.a }
+
+    immediate = {
+        save_game = yes
+    }
+
+    option = {
+        name = eu4_assistant.1.a
+    }
 }
 
 on_actions = {

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eu4-assistant-bot"
+version = "0.1.0"
+description = "EU4 Assistant + Bot — companion app for Europa Universalis IV"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["eu4_assistant_bot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

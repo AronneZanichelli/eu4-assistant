@@ -182,6 +182,10 @@ country_event = {
     hidden = yes
     is_triggered_only = yes
 
+    immediate = {
+        save_game = yes
+    }
+
     option = {
         name = eu4_assistant.1.a
     }
@@ -288,8 +292,37 @@ army = {
 ```
 
 **`sample_save.eu4`** — crea un ZIP valido in-memory con entry `gamestate`
-contenente il testo di `sample_nested.eu4.txt`. Genera questo file
-programmaticamente nello script di setup dei test oppure come conftest.py fixture.
+contenente il testo di `sample_nested.eu4.txt`. Crealo come fixture in `tests/conftest.py`:
+```python
+@pytest.fixture
+def sample_save_zip(tmp_path):
+    import zipfile
+    p = tmp_path / 'save.eu4'
+    with zipfile.ZipFile(p, 'w') as zf:
+        zf.writestr('gamestate', 'date = 1460.06.01\nplayer = "POR"\n')
+    return p
+```
+
+---
+
+## Task 5 — Aggiorna `eu4_assistant_bot/__init__.py`
+
+Aggiungi i nuovi simboli pubblici:
+
+```python
+from .parser import ClausewitzTextParser
+from .save_unzipper import SaveUnzipper, SaveFormatError
+from .mod import ModBuilder, ModInstallResult
+```
+
+Aggiungi anche a `__all__`:
+```python
+"ClausewitzTextParser",
+"SaveUnzipper",
+"SaveFormatError",
+"ModBuilder",
+"ModInstallResult",
+```
 
 ---
 
