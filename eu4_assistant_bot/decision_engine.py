@@ -6,6 +6,15 @@ from enum import Enum
 from .config import DecisionThresholds
 from .models import ActionPlan, GameSnapshot
 
+# Recommendation priority constants — tune these to adjust advisor behaviour
+_PRIO_COALITION = 0.95
+_PRIO_DEBT = 0.92
+_PRIO_MANPOWER = 0.90
+_PRIO_REBELS = 0.86
+_PRIO_EXPANSION = 0.78
+_PRIO_TRADE = 0.72
+_PRIO_TECH = 0.68
+
 
 @dataclass(slots=True)
 class Recommendation:
@@ -132,7 +141,7 @@ class DecisionEngine:
                 Recommendation(
                     title="Riduci rischio coalizione",
                     rationale="AE/coalition risk alto: privilegia miglioramento relazioni, tregue e guerra limitata.",
-                    priority=0.95,
+                    priority=_PRIO_COALITION,
                     category="diplomacy",
                 )
             )
@@ -142,7 +151,7 @@ class DecisionEngine:
                 Recommendation(
                     title="Stabilizza economia",
                     rationale="Debito elevato o bilancio mensile negativo: riduci maintenance, evita nuove guerre costose.",
-                    priority=0.92,
+                    priority=_PRIO_DEBT,
                     category="economy",
                 )
             )
@@ -152,7 +161,7 @@ class DecisionEngine:
                 Recommendation(
                     title="Recupera manpower",
                     rationale="Manpower critico: evita battaglie sfavorevoli, usa mercenari in fronti secondari.",
-                    priority=0.90,
+                    priority=_PRIO_MANPOWER,
                     category="military",
                 )
             )
@@ -162,7 +171,7 @@ class DecisionEngine:
                 Recommendation(
                     title="Abbassa unrest e rischio ribelli",
                     rationale="Rivolte probabili: alza autonomy selettiva, valuta harsh treatment e presidia province instabili.",
-                    priority=0.86,
+                    priority=_PRIO_REBELS,
                     category="internal",
                 )
             )
@@ -173,19 +182,19 @@ class DecisionEngine:
                     Recommendation(
                         title="Espansione controllata",
                         rationale="Rischi principali bassi: puoi pianificare una guerra breve su target a basso attrito.",
-                        priority=0.78,
+                        priority=_PRIO_EXPANSION,
                         category="strategy",
                     ),
                     Recommendation(
                         title="Ottimizza trade",
                         rationale="Bilancio stabile: reindirizza mercanti e investi su nodi ad alta resa.",
-                        priority=0.72,
+                        priority=_PRIO_TRADE,
                         category="economy",
                     ),
                     Recommendation(
                         title="Prepara prossimo tech spike",
                         rationale="Consolidamento consigliato: conserva monarch points e allinea idea group con obiettivi campagna.",
-                        priority=0.68,
+                        priority=_PRIO_TECH,
                         category="technology",
                     ),
                 ]
