@@ -27,7 +27,7 @@ class SafetyLimits:
 @dataclass(slots=True)
 class DecisionThresholds:
     coalition_risk_threshold: float = 0.65
-    debt_to_income_threshold: float = 24.0
+    debt_to_income_threshold: float = 24.0  # percentage: 24.0 = debt is 24% of income
     manpower_ratio_threshold: float = 0.18
     rebels_risk_threshold: float = 0.60
 
