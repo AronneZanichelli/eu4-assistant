@@ -5,7 +5,7 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum
 from pathlib import Path
 from typing import Callable
 
@@ -13,6 +13,7 @@ from watchdog.events import FileSystemEventHandler, FileSystemEvent
 from watchdog.observers import Observer
 
 logger = logging.getLogger(__name__)
+
 
 # ── Events ────────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,12 @@ class SaveEvent:
 # ── Internal watchdog handler ─────────────────────────────────────────────────
 
 class _SaveFileHandler(FileSystemEventHandler):
-    def __init__(self, target: Path, callback: Callable[[Path], None], debounce: float) -> None:
+    def __init__(
+        self,
+        target: Path,
+        callback: Callable[[Path], None],
+        debounce: float,
+    ) -> None:
         super().__init__()
         self._target   = target
         self._callback = callback
@@ -87,12 +93,12 @@ class FileWatcher:
         save_path: Path,
         debounce: float = 0.5,
         pause_timeout: float = 180.0,
-    _poll_interval: float = 10.0,
+        _poll_interval: float = 10.0,
     ) -> None:
-        self._save_path      = save_path.resolve()
-        self._debounce       = debounce
-        self._pause_timeout  = pause_timeout
-        self._poll_interval  = _poll_interval
+        self._save_path     = save_path.resolve()
+        self._debounce      = debounce
+        self._pause_timeout = pause_timeout
+        self._poll_interval = _poll_interval
 
         self._queue: queue.Queue[SaveEvent] = queue.Queue()
         self._observer: Observer | None = None
