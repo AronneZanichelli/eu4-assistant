@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 import json
 
@@ -14,9 +13,15 @@ from .models import (
 )
 
 
-@dataclass(slots=True)
 class SnapshotReadError(Exception):
-    message: str
+    """Raised when a snapshot cannot be read or is malformed."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self) -> str:
+        return self.message
 
     def __str__(self) -> str:  # pragma: no cover - trivial method
         return self.message
