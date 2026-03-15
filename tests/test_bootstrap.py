@@ -90,3 +90,44 @@ def test_run_uses_save_extract_adapter(tmp_path: Path, monkeypatch) -> None:
     assert event_payload["payload"]["snapshot_source"] == "save_extract"
     assert len(event_payload["payload"]["action_plans"]) > 0
     assert event_payload["payload"]["execution_summary"]["executed"] >= 0
+
+
+def test_run_serializes_risk_codes_as_strings(tmp_path: Path, monkeypatch) -> None:
+    """RiskCode Enum values must be serialized as strings in events.jsonl."""
+    monkeypatch.chdir(tmp_path)
+
+    install = tmp_path / "fake-eu4"
+    (install / "common" / "units").mkdir(parents=True)
+
+    # Snapshot that triggers coalition + debt risks (produces reasons with RiskCode)
+    snapshot = tmp_path / "risky_snapshot.json"
+    import json as _json
+    snapshot.write_text(_json.dumps({
+        "timestamp": "2026-01-01T00:00:00+00:00",
+        "country": "POR",
+        "economy": {"treasury": 10, "income": 5, "expenses": 8, "debt": 200},
+        "military": {"force_limit": 20, "manpower": 1000, "armies": []},
+        "diplomacy": {"truces": [], "alliances": [], "ae_map": {}},
+        "colonial": {"colonists_free": 0, "active_colonies": []},
+        "risk": {"coalition": 0.9, "rebels": 0.8},
+    }))
+
+    from eu4_assistant_bot.config import BotMode, RiskProfile
+    from eu4_assistant_bot.main import run
+
+    code = run(BotMode.ASSIST, install_path=install, snapshot_json_path=snapshot,
+               risk_profile=RiskProfile.SAFE)
+
+    assert code == 0
+    events_path = tmp_path / ".eu4-assistant" / "events.jsonl"
+    raw = events_path.read_text()
+
+    # Must be valid JSON
+    event = _json.loads(raw.splitlines()[-1])
+
+    # All reason codes must be plain strings, not dicts or enum reprs
+    reasons = event["payload"]["risk_alerts"]["reasons"]
+    assert len(reasons) > 0
+    for reason in reasons:
+        assert isinstance(reason["code"], str), f"Expected str, got {type(reason['code'])}: {reason['code']}"
+        assert "." in reason["code"], f"Expected dotted code like 'coalition.high', got: {reason['code']}"

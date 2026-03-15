@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from .models import EconomyState, GameSnapshot, MilitaryState, RiskState
 
 
-@dataclass(slots=True)
 class SaveAdapterError(Exception):
-    message: str
+    """Raised when a save extract cannot be read or parsed."""
 
-    def __str__(self) -> str:  # pragma: no cover
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self) -> str:
         return self.message
 
 
