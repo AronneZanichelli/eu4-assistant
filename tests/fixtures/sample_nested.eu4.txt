@@ -1,0 +1,21 @@
+date = 1460.06.01
+player = "POR"
+countries = {
+    POR = {
+        treasury = 120.500
+        manpower = 22.000
+        technology = {
+            adm_tech = 4
+            dip_tech = 4
+            mil_tech = 4
+        }
+    }
+}
+army = {
+    name = "Exercito"
+    location = 1297
+}
+army = {
+    name = "Guarda"
+    location = 230
+}

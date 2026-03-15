@@ -1,0 +1,4 @@
+date = 1460.06.01
+player = "POR"
+speed = 3
+multi_player = no
