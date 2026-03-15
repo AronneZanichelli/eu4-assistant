@@ -1,10 +1,13 @@
-"""EU4 Assistant + Bot core package (M1 foundation)."""
+"""EU4 Assistant + Bot core package."""
 
 from .config import AppConfig, BotMode, DecisionThresholds, RiskProfile
 from .decision_engine import DecisionEngine, Recommendation, RiskAlerts, RiskCode, RiskReason
 from .executor import ActionExecutor, ExecutionResult
+from .mod import ModBuilder, ModInstallResult, ModInstallStatus
 from .models import ActionPlan, GameSnapshot
+from .parser import ClausewitzTextParser
 from .save_adapter import SaveAdapterError, SaveSnapshotAdapter
+from .save_unzipper import SaveFormatError, SaveUnzipper
 from .state_reader import SnapshotReadError, SnapshotReader
 
 __all__ = [
@@ -25,4 +28,10 @@ __all__ = [
     "SnapshotReadError",
     "SaveSnapshotAdapter",
     "SaveAdapterError",
+    "ClausewitzTextParser",
+    "SaveUnzipper",
+    "SaveFormatError",
+    "ModBuilder",
+    "ModInstallResult",
+    "ModInstallStatus",
 ]
