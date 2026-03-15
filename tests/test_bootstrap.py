@@ -131,3 +131,19 @@ def test_run_serializes_risk_codes_as_strings(tmp_path: Path, monkeypatch) -> No
     for reason in reasons:
         assert isinstance(reason["code"], str), f"Expected str, got {type(reason['code'])}: {reason['code']}"
         assert "." in reason["code"], f"Expected dotted code like 'coalition.high', got: {reason['code']}"
+
+
+def test_game_snapshot_has_m4_fields(tmp_path: Path, monkeypatch) -> None:
+    """GameSnapshot serialized to JSON must include M4 fields."""
+    from eu4_assistant_bot.models import GameSnapshot, TechState, IdeasState
+    snap = GameSnapshot.empty(country="POR")
+    snap.eu4_date = "1444.11.11"
+    snap.stability = 1
+    snap.prestige = 50.0
+    snap.tech = TechState(adm_tech=3, dip_tech=3, mil_tech=3)
+    snap.ideas = IdeasState(completed_groups=["exploration_ideas"])
+    import json
+    data = json.loads(snap.to_json())
+    assert data["eu4_date"] == "1444.11.11"
+    assert data["tech"]["adm_tech"] == 3
+    assert "exploration_ideas" in data["ideas"]["completed_groups"]
