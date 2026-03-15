@@ -11,6 +11,11 @@ dependencies = [
     "watchdog>=4.0,<7.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["eu4_assistant_bot*"]
