@@ -1,7 +1,9 @@
 """EU4 Assistant + Bot core package."""
 
+from .colonial import ColonialAdvisor, ColonizationPlan, ColonyRanking
 from .config import AppConfig, BotMode, DecisionThresholds, RiskProfile
 from .decision_engine import DecisionEngine, Recommendation, RiskAlerts, RiskCode, RiskReason
+from .economy import BalanceAlert, EconomyAdvisor, MerchantAdvice, TechAlert
 from .executor import ActionExecutor, ExecutionResult
 from .extractor import StateExtractor
 from .mod import ModBuilder, ModInstallResult, ModInstallStatus
@@ -28,6 +30,8 @@ from .watcher import FileWatcher, SaveEvent, SaveEventType
 
 __all__ = [
     "AppConfig", "BotMode", "RiskProfile", "DecisionThresholds",
+    "ColonialAdvisor", "ColonizationPlan", "ColonyRanking",
+    "EconomyAdvisor", "MerchantAdvice", "TechAlert", "BalanceAlert",
     "ActionExecutor", "ExecutionResult",
     "StateExtractor",
     "ModBuilder", "ModInstallResult", "ModInstallStatus",

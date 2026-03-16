@@ -281,11 +281,13 @@ Durante una guerra attiva il military bot gestisce:
   - *Peacetime:* stack scoring vs combat width, alert eserciti sotto-dimensionati, reclutamento
   - *Wartime:* routing eserciti verso fronte/assedi, valutazione battle odds (ingaggio se favorevole, ritirata se sfavorevole)
   - *Pace gate:* trattative di pace sempre in coda conferma, mai eseguite in autonomia
-- **M7 — Colonial:** due modalità operative:
-  - *Autonomo*: ranking province per valore × sicurezza, sceglie e colonizza in autonomia.
-  - *Lista target*: il giocatore spunta province specifiche, il bot le colonizza in ordine.
-  La modalità attiva è configurabile dal pannello full-bot e persistente tra sessioni.
-- **M7 — Economy:** steering mercanti, alert tech con MP insufficienti.
+- **M7 — Colonial:** raccomanda invio colono quando colonists_free > 0, priorità 0.70. Action plan `colonial_send_colonist`.
+  - Due modalità (autonomo / lista target) configurabili, gestite a livello config.
+- **M7 — Economy:**
+  - *Balance alert preventivo:* priorità 0.80, trigger quando bilancio < soglia (default 1 ducato/mese).
+  - *Merchant steering:* priorità 0.66, collect sul nodo a maggior valore, steer sugli altri.
+  - *Tech alert:* priorità 0.64, alert quando MP insufficienti per prossimo tech.
+  - Action plans: `economy_stabilize_budget`, `economy_tech_preparation`.
 - Ogni raccomandazione include: titolo, categoria, score, testo "perché", flag `executable: bool`.
 
 ### 8.6 `eu4_assistant_bot.executor` *(M8)*
