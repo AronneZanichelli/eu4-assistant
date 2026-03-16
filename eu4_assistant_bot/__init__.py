@@ -7,14 +7,17 @@ from .extractor import StateExtractor
 from .mod import ModBuilder, ModInstallResult, ModInstallStatus
 from .models import (
     ActionPlan,
+    ArmyState,
     ColonialState,
     DiplomacyState,
     EconomyState,
     GameSnapshot,
     IdeasState,
     MilitaryState,
+    ProvinceState,
     RiskState,
     TechState,
+    TradeNodeState,
 )
 from .parser import ClausewitzTextParser
 from .save_adapter import SaveAdapterError, SaveSnapshotAdapter
@@ -28,6 +31,7 @@ __all__ = [
     "StateExtractor",
     "ModBuilder", "ModInstallResult", "ModInstallStatus",
     "ActionPlan", "GameSnapshot",
+    "ArmyState", "ProvinceState", "TradeNodeState",
     "EconomyState", "MilitaryState", "DiplomacyState",
     "ColonialState", "RiskState", "TechState", "IdeasState",
     "DecisionEngine", "Recommendation", "RiskAlerts", "RiskCode", "RiskReason",

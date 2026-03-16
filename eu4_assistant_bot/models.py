@@ -13,13 +13,44 @@ class EconomyState:
     income: float = 0.0
     expenses: float = 0.0
     debt: float = 0.0
+    merchants_deployed: int = 0
+
+
+@dataclass(slots=True)
+class ArmyState:
+    """Individual army unit state."""
+    id: str = ""
+    name: str = ""
+    location: int = 0
+    strength: int = 0
+    composition: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ProvinceState:
+    """Province state for colonial and military logic."""
+    province_id: int = 0
+    name: str = ""
+    owner: str = ""
+    development: float = 0.0
+    unrest: float = 0.0
+    trade_good: str = ""
+
+
+@dataclass(slots=True)
+class TradeNodeState:
+    """Trade node state for economy logic."""
+    id: str = ""
+    our_power: float = 0.0
+    total_value: float = 0.0
+    merchants: int = 0
 
 
 @dataclass(slots=True)
 class MilitaryState:
     force_limit: int = 0
     manpower: int = 0
-    armies: list[dict[str, Any]] = field(default_factory=list)
+    armies: list[ArmyState] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -39,6 +70,7 @@ class ColonialState:
 class RiskState:
     coalition: float = 0.0
     rebels: float = 0.0
+    ae_max: float = 0.0
 
 
 @dataclass(slots=True)

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .models import (
+    ArmyState,
     ColonialState,
     DiplomacyState,
     EconomyState,
@@ -87,7 +88,17 @@ class StateExtractor:
         armies_raw = c.get("army", [])
         if isinstance(armies_raw, dict):
             armies_raw = [armies_raw]
-        armies = [a for a in armies_raw if isinstance(a, dict)]
+        armies: list[ArmyState] = []
+        for a in armies_raw:
+            if not isinstance(a, dict):
+                continue
+            armies.append(ArmyState(
+                id=self._str(a.get("id"), default=""),
+                name=self._str(a.get("name"), default=""),
+                location=self._int(a.get("location"), default=0),
+                strength=self._int(a.get("strength"), default=0),
+                composition={},
+            ))
         return MilitaryState(
             force_limit=self._int(c.get("land_forcelimit"), default=0),
             manpower=self._int(
