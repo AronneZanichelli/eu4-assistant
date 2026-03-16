@@ -47,10 +47,33 @@ class TradeNodeState:
 
 
 @dataclass(slots=True)
+class WarState:
+    """Active war state extracted from save."""
+    war_name: str = ""
+    attacker: str = ""          # lead attacker tag
+    defender: str = ""          # lead defender tag
+    our_side: str = ""          # "attacker" | "defender"
+    war_score: float = 0.0     # -100 → +100
+    start_date: str = ""
+
+
+@dataclass(slots=True)
+class BattleOdds:
+    """Pre-engagement strength comparison."""
+    our_strength: int = 0
+    enemy_strength: int = 0
+    our_combat_width_fill: float = 0.0   # 0.0–1.0+
+    strength_ratio: float = 0.0          # our/enemy
+    favorable: bool = False
+
+
+@dataclass(slots=True)
 class MilitaryState:
     force_limit: int = 0
     manpower: int = 0
     armies: list[ArmyState] = field(default_factory=list)
+    wars: list[WarState] = field(default_factory=list)
+    at_war: bool = False
 
 
 @dataclass(slots=True)

@@ -14,6 +14,7 @@ from .models import (
     MilitaryState,
     RiskState,
     TechState,
+    WarState,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,13 +93,15 @@ class StateExtractor:
         for a in armies_raw:
             if not isinstance(a, dict):
                 continue
+            composition = self._parse_composition(a)
             armies.append(ArmyState(
                 id=self._str(a.get("id"), default=""),
                 name=self._str(a.get("name"), default=""),
                 location=self._int(a.get("location"), default=0),
                 strength=self._int(a.get("strength"), default=0),
-                composition={},
+                composition=composition,
             ))
+        wars = self._extract_wars(tree, country)
         return MilitaryState(
             force_limit=self._int(c.get("land_forcelimit"), default=0),
             manpower=self._int(
@@ -106,7 +109,74 @@ class StateExtractor:
                 default=0,
             ),
             armies=armies,
+            wars=wars,
+            at_war=len(wars) > 0,
         )
+
+    @staticmethod
+    def _parse_composition(army_block: dict[str, Any]) -> dict[str, int]:
+        """Parse regiment list into infantry/cavalry/artillery counts."""
+        regiments = army_block.get("regiment", [])
+        if isinstance(regiments, dict):
+            regiments = [regiments]
+        composition: dict[str, int] = {"infantry": 0, "cavalry": 0, "artillery": 0}
+        for reg in regiments:
+            if not isinstance(reg, dict):
+                continue
+            unit_type = str(reg.get("type", "")).lower()
+            for cat in ("infantry", "cavalry", "artillery"):
+                if cat in unit_type:
+                    composition[cat] += 1
+                    break
+        return composition
+
+    def _extract_wars(self, tree: dict[str, Any], country: str) -> list[WarState]:
+        """Extract active wars involving the player country."""
+        wars_raw = tree.get("active_war", [])
+        if isinstance(wars_raw, dict):
+            wars_raw = [wars_raw]
+        wars: list[WarState] = []
+        for w in wars_raw:
+            if not isinstance(w, dict):
+                continue
+            raw_atk = w.get("attacker", "")
+            attacker = self._str(raw_atk.get("tag") if isinstance(raw_atk, dict) else raw_atk, default="")
+            raw_def = w.get("defender", "")
+            defender = self._str(raw_def.get("tag") if isinstance(raw_def, dict) else raw_def, default="")
+            # Check participants lists for our country
+            attackers = self._war_participants(w, "attackers")
+            defenders = self._war_participants(w, "defenders")
+            if country in attackers:
+                our_side = "attacker"
+            elif country in defenders:
+                our_side = "defender"
+            else:
+                continue  # not our war
+            wars.append(WarState(
+                war_name=self._str(w.get("name"), default=""),
+                attacker=attacker,
+                defender=defender,
+                our_side=our_side,
+                war_score=self._float(w.get("war_score"), default=0.0),
+                start_date=self._str(w.get("start_date"), default=""),
+            ))
+        return wars
+
+    @staticmethod
+    def _war_participants(war_block: dict[str, Any], side_key: str) -> list[str]:
+        """Extract country tags from a war's attackers/defenders list."""
+        side = war_block.get(side_key, [])
+        if isinstance(side, dict):
+            side = [side]
+        tags: list[str] = []
+        for entry in side:
+            if isinstance(entry, dict):
+                tag = entry.get("tag", "")
+                if tag:
+                    tags.append(str(tag))
+            elif isinstance(entry, str):
+                tags.append(entry)
+        return tags
 
     def _extract_diplomacy(self, tree: dict[str, Any], country: str) -> DiplomacyState:
         c = self._country_block(tree, country)

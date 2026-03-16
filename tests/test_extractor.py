@@ -133,3 +133,79 @@ def test_extract_produces_valid_snapshot_json():
     parsed = json.loads(snap.to_json())
     assert parsed["country"] == "POR"
     assert parsed["tech"]["adm_tech"] == 5
+
+
+# ── M6: regiment composition + war extraction ──────────────────────────────
+
+
+def test_extract_army_composition():
+    tree = {
+        "player": "FRA",
+        "countries": {
+            "FRA": {
+                "land_forcelimit": 40,
+                "manpower": 30.0,
+                "army": {
+                    "name": "Armée Royale",
+                    "location": 183,
+                    "regiment": [
+                        {"type": "french_infantry", "home": 183},
+                        {"type": "french_infantry", "home": 183},
+                        {"type": "latin_cavalry", "home": 183},
+                        {"type": "western_artillery", "home": 183},
+                    ],
+                },
+            }
+        },
+    }
+    snap = StateExtractor().extract(tree)
+    assert len(snap.military.armies) == 1
+    comp = snap.military.armies[0].composition
+    assert comp["infantry"] == 2
+    assert comp["cavalry"] == 1
+    assert comp["artillery"] == 1
+
+
+def test_extract_wars():
+    tree = {
+        "player": "FRA",
+        "countries": {"FRA": {}},
+        "active_war": {
+            "name": "FRA vs AUS",
+            "attackers": [{"tag": "FRA"}, {"tag": "CAS"}],
+            "defenders": [{"tag": "AUS"}, {"tag": "HUN"}],
+            "war_score": 35.5,
+            "start_date": "1455.03.12",
+        },
+    }
+    snap = StateExtractor().extract(tree)
+    assert snap.military.at_war is True
+    assert len(snap.military.wars) == 1
+    war = snap.military.wars[0]
+    assert war.war_name == "FRA vs AUS"
+    assert war.our_side == "attacker"
+    assert war.war_score == pytest.approx(35.5)
+
+
+def test_extract_war_as_defender():
+    tree = {
+        "player": "AUS",
+        "countries": {"AUS": {}},
+        "active_war": [
+            {
+                "name": "FRA vs AUS",
+                "attackers": [{"tag": "FRA"}],
+                "defenders": [{"tag": "AUS"}],
+                "war_score": -20.0,
+            }
+        ],
+    }
+    snap = StateExtractor().extract(tree)
+    assert snap.military.at_war is True
+    assert snap.military.wars[0].our_side == "defender"
+
+
+def test_extract_no_wars():
+    snap = StateExtractor().extract(FULL_TREE)
+    assert snap.military.at_war is False
+    assert snap.military.wars == []

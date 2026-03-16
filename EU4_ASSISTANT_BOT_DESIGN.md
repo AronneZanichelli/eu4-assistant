@@ -253,6 +253,13 @@ Durante una guerra attiva il military bot gestisce:
 
 **Activity feed:** ogni azione eseguita dal bot appare in tempo reale nel pannello Advisor (banner compatto sopra le recommendation cards) con: tipo azione, target, stato (in corso / completata / fallita).
 
+### 8.5b `eu4_assistant_bot.military` *(M6)* ✅
+- `MilitaryAdvisor`: logica pura military senza dipendenze UI/executor.
+  - **Peacetime:** `score_stack()` valuta composizione vs combat width, `assess_armies()` genera alert (undersized, no_artillery, excess_cavalry), `recommend_recruitment()` suggerisce reclutamento sotto force limit.
+  - **Wartime:** `evaluate_battle_odds()` calcola strength ratio, `should_engage()` / `should_retreat()` decidono ingaggio/ritirata, `prioritize_targets()` propone peace gate quando war score elevato.
+- Dataclass di supporto: `StackScore`, `ArmyAlert`, `RecruitmentPlan`, `WarTarget`.
+- Soglie configurabili: combat width (default 27), engage threshold (1.5), retreat threshold (0.6).
+
 ### 8.5 `eu4_assistant_bot.decision_engine` *(esteso M6, M7)*
 - Risk evaluation + top-3 raccomandazioni ordinate per priorità.
 - **M6 — Military:** 
@@ -420,7 +427,7 @@ Non altera regole di gioco. Compatibile con achievement.
 | **M3** ✅ | ClausewitzTextParser completo + SaveUnzipper + mod autosave | M1 |
 | **M4** ✅ | FileWatcher + StateExtractor + GameSnapshot v2 + DLC compat + path autodetect | M3 |
 | **M5** ✅ | UI PyQt6 base (Dashboard + Advisor + Log, dati live) + PauseController + hotkey | M4 |
-| **M6** | Military logic reale (stack scoring, army advisor) | M4, M5 |
+| **M6** ✅ | Military logic reale (stack scoring, army advisor) | M4, M5 |
 | **M7** | Colonial + Economy logic reale | M4, M5 |
 | **M8** | ActionExecutor reale (pyautogui) + semi-bot confirm + full-bot params UI | M5, M6, M7 |
 | **M9** | QA: test end-to-end, stabilità, crash hardening, DLC regression | tutti |
@@ -489,8 +496,8 @@ Non altera regole di gioco. Compatibile con achievement.
 | M3 — Parser Clausewitz completo + mod | ✅ Completato |
 | M4 — FileWatcher + StateExtractor + DLC compat | ✅ Completato |
 | M5 — UI PyQt6 + PauseController + hotkey | ✅ Completato |
-| M6 — Military logic | ⏳ Prossimo |
-| M7 — Colonial + Economy logic | 🔜 Pianificato |
+| M6 — Military logic | ✅ Completato |
+| M7 — Colonial + Economy logic | ⏳ Prossimo |
 | M8 — ActionExecutor reale + full-bot UI | 🔜 Pianificato |
 | M9 — QA / stabilità / crash hardening | 🔜 Pianificato |
 | M10 — Packaging + changelog | 🔜 Pianificato |

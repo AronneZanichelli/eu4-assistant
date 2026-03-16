@@ -4,14 +4,18 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .config import DecisionThresholds
+from .military import MilitaryAdvisor
 from .models import ActionPlan, GameSnapshot
 
 # Recommendation priority constants — tune these to adjust advisor behaviour
+_PRIO_PEACE_GATE = 0.97
 _PRIO_COALITION = 0.95
 _PRIO_DEBT = 0.92
 _PRIO_MANPOWER = 0.90
 _PRIO_REBELS = 0.86
+_PRIO_ARMY_ALERT = 0.82
 _PRIO_EXPANSION = 0.78
+_PRIO_RECRUIT = 0.75
 _PRIO_TRADE = 0.72
 _PRIO_TECH = 0.68
 
@@ -51,10 +55,15 @@ class RiskReason:
 
 
 class DecisionEngine:
-    """M2 decision engine with explainable recommendations and core alerts."""
+    """Decision engine with explainable recommendations, core alerts, and military advisor."""
 
-    def __init__(self, thresholds: DecisionThresholds | None = None):
+    def __init__(
+        self,
+        thresholds: DecisionThresholds | None = None,
+        military_advisor: MilitaryAdvisor | None = None,
+    ):
         self.thresholds = thresholds or DecisionThresholds()
+        self.military = military_advisor or MilitaryAdvisor()
 
     def evaluate_risks(self, snapshot: GameSnapshot) -> RiskAlerts:
         monthly_balance = snapshot.economy.income - snapshot.economy.expenses
@@ -179,6 +188,9 @@ class DecisionEngine:
                 )
             )
 
+        # ── M6: Military recommendations ────────────────────────────────────
+        recommendations.extend(self._military_recommendations(snapshot))
+
         if not recommendations:
             recommendations.extend(
                 [
@@ -205,6 +217,53 @@ class DecisionEngine:
 
         ordered = sorted(recommendations, key=lambda item: item.priority, reverse=True)
         return ordered[:3]
+
+    def _military_recommendations(self, snapshot: GameSnapshot) -> list[Recommendation]:
+        """Generate military-specific recommendations (M6)."""
+        recs: list[Recommendation] = []
+        mil = snapshot.military
+
+        if mil.at_war:
+            # Wartime: peace gate + army alerts
+            for war in mil.wars:
+                if war.our_side == "attacker" and war.war_score >= 50.0:
+                    recs.append(Recommendation(
+                        title="Valuta trattativa di pace",
+                        rationale=f"War score {war.war_score:.0f}% in '{war.war_name}': considera una pace vantaggiosa.",
+                        priority=_PRIO_PEACE_GATE,
+                        category="military",
+                    ))
+                elif war.our_side == "defender" and war.war_score <= -50.0:
+                    recs.append(Recommendation(
+                        title="Valuta trattativa di pace",
+                        rationale=f"War score {war.war_score:.0f}% in '{war.war_name}': situazione critica, valuta pace.",
+                        priority=_PRIO_PEACE_GATE,
+                        category="military",
+                    ))
+        else:
+            # Peacetime: army composition alerts
+            alerts = self.military.assess_armies(snapshot)
+            critical_alerts = [a for a in alerts if a.severity == "critical"]
+            if critical_alerts:
+                first = critical_alerts[0]
+                recs.append(Recommendation(
+                    title=f"Esercito '{first.army_name}' in difficoltà",
+                    rationale=first.message,
+                    priority=_PRIO_ARMY_ALERT,
+                    category="military",
+                ))
+
+        # Recruitment recommendation (peace or war)
+        plan = self.military.recommend_recruitment(snapshot)
+        if plan is not None:
+            recs.append(Recommendation(
+                title="Recluta reggimenti",
+                rationale=plan.reason,
+                priority=_PRIO_RECRUIT,
+                category="military",
+            ))
+
+        return recs
 
     def build_action_plans(self, snapshot: GameSnapshot) -> list[ActionPlan]:
         recommendations = self.recommend(snapshot)
@@ -250,6 +309,28 @@ class DecisionEngine:
             )
 
         if recommendation.category == "military":
+            title_lower = recommendation.title.lower()
+            if "pace" in title_lower:
+                return (
+                    "military_peace_gate",
+                    {
+                        "target_metric": "war_score",
+                        "current_value": "pending_confirmation",
+                    },
+                )
+            if "recluta" in title_lower:
+                total_reg = sum(
+                    sum(a.composition.values()) for a in snapshot.military.armies
+                )
+                return (
+                    "military_recruit",
+                    {
+                        "target_metric": "regiments",
+                        "current_value": total_reg,
+                        "target_above": float(snapshot.military.force_limit),
+                    },
+                )
+            # Default: manpower recovery or army alert
             manpower_ratio = snapshot.military.manpower / max(snapshot.military.force_limit * 1000, 1)
             return (
                 "military_recover_manpower",
