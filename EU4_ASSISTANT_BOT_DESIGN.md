@@ -481,9 +481,9 @@ Non altera regole di gioco. Compatibile con achievement.
 |---|---|
 | M1 — Foundation | ✅ Completato |
 | M2 — Decision engine + simulated executor | ✅ Completato |
-| M3 — Parser Clausewitz completo + mod | ⏳ Prossimo |
-| M4 — FileWatcher + StateExtractor + DLC compat | 🔜 Pianificato |
-| M5 — UI PyQt6 + PauseController + hotkey | 🔜 Pianificato |
+| M3 — Parser Clausewitz completo + mod | ✅ Completato |
+| M4 — FileWatcher + StateExtractor + DLC compat | ✅ Completato |
+| M5 — UI PyQt6 + PauseController + hotkey | ⏳ Prossimo |
 | M6 — Military logic | 🔜 Pianificato |
 | M7 — Colonial + Economy logic | 🔜 Pianificato |
 | M8 — ActionExecutor reale + full-bot UI | 🔜 Pianificato |
