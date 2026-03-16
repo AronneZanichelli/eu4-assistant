@@ -13,8 +13,10 @@ from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QHBoxLayout, QMainWindow, QWidget
 
 from ..decision_engine import Recommendation, RiskAlerts
-from ..models import GameSnapshot
+from ..execution.supervisor import ExecutionState
+from ..models import ActionPlan, GameSnapshot
 from .advisor_panel import AdvisorPanel
+from .confirmation_dialog import ConfirmationDialog
 from .dashboard_panel import DashboardPanel
 from .log_panel import LogLevel, LogPanel
 
@@ -71,6 +73,9 @@ class MainWindow(QMainWindow):
     snapshot_received = pyqtSignal(object)        # GameSnapshot
     recommendations_received = pyqtSignal(object)  # list[Recommendation]
     alerts_received = pyqtSignal(object)           # RiskAlerts
+    execution_started = pyqtSignal(str)           # action description
+    execution_completed = pyqtSignal(object)       # HandlerResult
+    execution_state_changed = pyqtSignal(str)     # ExecutionState value
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -97,6 +102,12 @@ class MainWindow(QMainWindow):
         self.snapshot_received.connect(self._on_snapshot)
         self.recommendations_received.connect(self._on_recommendations)
         self.alerts_received.connect(self._on_alerts)
+        self.execution_started.connect(self._on_execution_started)
+        self.execution_completed.connect(self._on_execution_completed)
+        self.execution_state_changed.connect(self._on_execution_state_changed)
+
+        # Action plan storage for execute flow
+        self._current_plans: list[ActionPlan] = []
 
         # ── Restore window geometry ──
         self._settings = QSettings("EU4Assistant", "MainWindow")
@@ -132,6 +143,47 @@ class MainWindow(QMainWindow):
     @pyqtSlot(object)
     def _on_alerts(self, alerts: RiskAlerts) -> None:
         self.advisor.update_alerts(alerts)
+
+    # ── Execution slots ──────────────────────────────────────────────────
+
+    def set_action_plans(self, plans: list[ActionPlan]) -> None:
+        """Store latest action plans for execute flow."""
+        self._current_plans = list(plans)
+
+    @pyqtSlot(str)
+    def _on_execution_started(self, description: str) -> None:
+        self.advisor.show_execution_banner(description)
+        self.log.add_entry(LogLevel.ACTION, f"Esecuzione: {description}")
+
+    @pyqtSlot(object)
+    def _on_execution_completed(self, result: object) -> None:
+        self.advisor.hide_execution_banner()
+        # result is a HandlerResult
+        hr = result
+        if hasattr(hr, "success"):
+            status = "completata" if hr.success else "fallita"
+            self.log.add_entry(
+                LogLevel.ACTION if hr.success else LogLevel.ERROR,
+                f"Azione {hr.action_type} {status}: {hr.message}",
+            )
+            if hasattr(hr, "is_critical") and hr.is_critical and hr.success:
+                self.advisor.show_undo_available(hr.action_type)
+
+    @pyqtSlot(str)
+    def _on_execution_state_changed(self, state_value: str) -> None:
+        if state_value == ExecutionState.PAUSED_EU4:
+            self.advisor.show_eu4_paused()
+        elif state_value == ExecutionState.IDLE:
+            self.advisor.hide_execution_banner()
+        elif state_value == ExecutionState.EMERGENCY_STOP:
+            self.advisor.hide_execution_banner()
+            self.log.add_entry(LogLevel.ERROR, "Emergency stop attivato")
+
+    def show_confirmation_dialog(self, plan: ActionPlan) -> bool:
+        """Show confirmation dialog and return True if user confirmed."""
+        dialog = ConfirmationDialog(plan, parent=self)
+        dialog.exec()
+        return dialog.was_confirmed()
 
     # ── Window management ──────────────────────────────────────────────────
 

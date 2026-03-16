@@ -290,18 +290,18 @@ Durante una guerra attiva il military bot gestisce:
   - Action plans: `economy_stabilize_budget`, `economy_tech_preparation`.
 - Ogni raccomandazione include: titolo, categoria, score, testo "perché", flag `executable: bool`.
 
-### 8.6 `eu4_assistant_bot.executor` *(M8)*
-- `ActionExecutor` reale via `pyautogui` + `win32api`.
-- Ogni `ActionHandler`: `pre_check() → execute() → post_check()`.
-- `ConfirmationDialog` (semi-bot): mostra dettaglio azione, attende conferma.
-- `ExecutionSupervisor`: retry, fallback, stop emergenza.
-- Azioni v1.0:
-  - *Peacetime:* reclutamento truppe, invio colono, miglioramento relazioni, riduzione manutenzione
-  - *Wartime:* movimento eserciti verso fronte, assedio obiettivi, ritirata da battaglie sfavorevoli, ingaggio battaglie favorevoli
-  - *Mai automatiche (richiedono sempre conferma):* trattative di pace, cessione province, pagamento indennità
-- **Live action display:** ogni azione in esecuzione mostra un banner "Sto eseguendo: [azione]" in cima all'Advisor, sostituisce le recommendation cards durante l'esecuzione.
-- **Annulla ultima azione:** disponibile solo per azioni critiche (pace, cessione province, indennità elevate) tramite tasto dedicato nel banner di conferma. Non implementato per azioni reversibili.
-- **Comportamento se EU4 è in pausa:** il bot rileva che il gioco è fermo (nessun nuovo autosave dopo timeout configurabile), entra in stato `pausa automatica` e mostra avviso "EU4 in pausa — bot in attesa". Riprende automaticamente al primo nuovo autosave.
+### 8.6 `eu4_assistant_bot.executor` + `eu4_assistant_bot.execution` *(M8)* ✅
+- **`execution/input_backend.py`**: `InputBackend` ABC + `PyAutoGuiBackend` (prod, import opzionale) + `StubBackend` (test).
+- **`execution/action_handler.py`**: `ActionHandler` ABC con `pre_check() → execute() → post_check()` template method. Handler registry con `@register_handler` e `get_handler()`.
+- **`execution/supervisor.py`**: `ExecutionSupervisor` con retry (max 2), emergency stop (thread-safe), EU4-pause awareness. Stati: IDLE/EXECUTING/WAITING_CONFIRM/PAUSED_EU4/ERROR/EMERGENCY_STOP.
+- **`execution/handlers/`**: 9 handler registrati:
+  - *Peacetime (fully implemented):* `RecruitTroopsHandler`, `SendColonistHandler`, `ImproveRelationsHandler`, `ReduceMaintenanceHandler`
+  - *Wartime (working stubs — pre_check funzionante, execute stub):* `MoveArmyHandler`, `SiegeTargetHandler`, `RetreatArmyHandler`, `EngageBattleHandler`
+  - *Always-confirm:* `PeaceTreatyHandler` — `requires_confirmation=True`, `is_critical=True`, `execute()` raises `NotImplementedError`
+- **`executor.py`** (facade): mantiene `simulate()` legacy + nuovo `execute(plan, snapshot, mode)` che delega a `ExecutionSupervisor`.
+- **`ui/confirmation_dialog.py`**: `ConfirmationDialog` modale PyQt6 — tipo azione, priorità, confidenza, outcome, bottoni Annulla/Conferma.
+- **`ui/execution_banner.py`**: `ExecutionBanner` in cima all'AdvisorPanel — "Sto eseguendo: [azione]", "EU4 in pausa", undo per azioni critiche, STOP button.
+- Pre/post check: **snapshot-based** (confronto stato game), no template matching.
 
 ### 8.7 `eu4_assistant_bot.pause_controller` *(M5)* ✅
 - Monitora snapshot per condizioni di pausa automatica.

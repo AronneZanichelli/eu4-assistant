@@ -4,6 +4,16 @@ from .colonial import ColonialAdvisor, ColonizationPlan, ColonyRanking
 from .config import AppConfig, BotMode, DecisionThresholds, RiskProfile
 from .decision_engine import DecisionEngine, Recommendation, RiskAlerts, RiskCode, RiskReason
 from .economy import BalanceAlert, EconomyAdvisor, MerchantAdvice, TechAlert
+from .execution import (
+    ActionHandler,
+    CheckResult,
+    ExecutionState,
+    ExecutionSupervisor,
+    HandlerResult,
+    InputBackend,
+    StubBackend,
+    SupervisorConfig,
+)
 from .executor import ActionExecutor, ExecutionResult
 from .extractor import StateExtractor
 from .mod import ModBuilder, ModInstallResult, ModInstallStatus
@@ -32,6 +42,9 @@ __all__ = [
     "AppConfig", "BotMode", "RiskProfile", "DecisionThresholds",
     "ColonialAdvisor", "ColonizationPlan", "ColonyRanking",
     "EconomyAdvisor", "MerchantAdvice", "TechAlert", "BalanceAlert",
+    "ActionHandler", "CheckResult", "HandlerResult",
+    "ExecutionState", "ExecutionSupervisor", "SupervisorConfig",
+    "InputBackend", "StubBackend",
     "ActionExecutor", "ExecutionResult",
     "StateExtractor",
     "ModBuilder", "ModInstallResult", "ModInstallStatus",

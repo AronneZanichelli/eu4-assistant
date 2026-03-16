@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .config import BotMode
-from .models import ActionPlan
+from .config import BotMode, SafetyLimits
+from .execution.input_backend import InputBackend, StubBackend
+from .execution.supervisor import ExecutionSupervisor, SupervisorConfig
+from .models import ActionPlan, GameSnapshot
+
+# Ensure all handlers are registered on import
+import eu4_assistant_bot.execution.handlers  # noqa: F401
 
 
 @dataclass(slots=True)
@@ -17,7 +22,39 @@ class ExecutionResult:
 
 
 class ActionExecutor:
-    """Simulated executor for action plans (pre-local integration stage)."""
+    """Action executor with both simulated and real execution modes.
+
+    - simulate(): returns fake results (M2 legacy, used by tests)
+    - execute(): real execution via InputBackend + ExecutionSupervisor (M8)
+    """
+
+    def __init__(
+        self,
+        backend: InputBackend | None = None,
+        safety: SafetyLimits | None = None,
+        supervisor_config: SupervisorConfig | None = None,
+    ) -> None:
+        self._backend = backend or StubBackend()
+        self._supervisor = ExecutionSupervisor(
+            backend=self._backend,
+            safety=safety or SafetyLimits(),
+            config=supervisor_config,
+        )
+
+    @property
+    def supervisor(self) -> ExecutionSupervisor:
+        return self._supervisor
+
+    def execute(self, plan: ActionPlan, snapshot: GameSnapshot, mode: BotMode) -> ExecutionResult:
+        """Real execution via supervisor + registered handlers."""
+        result = self._supervisor.execute_plan(plan, snapshot, mode)
+        return ExecutionResult(
+            plan_id=plan.id,
+            action_type=plan.action_type,
+            status="executed" if result.success else "failed",
+            reason=result.message,
+            confidence=plan.confidence,
+        )
 
     def simulate(self, plans: list[ActionPlan], mode: BotMode) -> list[ExecutionResult]:
         results: list[ExecutionResult] = []

@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..decision_engine import Recommendation, RiskAlerts
+from .execution_banner import ExecutionBanner
 
 
 class _RecommendationCard(QFrame):
@@ -76,6 +77,11 @@ class AdvisorPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
 
+        # ── Execution banner (hidden by default) ──
+        self._execution_banner = ExecutionBanner()
+        self._execution_banner.stop_requested.connect(lambda: self.execute_requested.emit("__stop__"))
+        layout.addWidget(self._execution_banner)
+
         # ── Alert badges row ──
         self._alert_row = QHBoxLayout()
         self._alert_labels: dict[str, QLabel] = {}
@@ -129,6 +135,24 @@ class AdvisorPanel(QWidget):
 
     def set_mode_label(self, text: str) -> None:
         self._lbl_mode.setText(f"Modalità: {text}")
+
+    # ── Execution banner API ──────────────────────────────────────────────
+
+    def show_execution_banner(self, description: str) -> None:
+        self._execution_banner.show_executing(description)
+
+    def hide_execution_banner(self) -> None:
+        self._execution_banner.hide_banner()
+
+    def show_eu4_paused(self) -> None:
+        self._execution_banner.show_eu4_paused()
+
+    def show_undo_available(self, description: str) -> None:
+        self._execution_banner.show_undo_available(description)
+
+    @property
+    def execution_banner(self) -> ExecutionBanner:
+        return self._execution_banner
 
     def _set_badge(self, key: str, active: bool) -> None:
         lbl = self._alert_labels.get(key)
