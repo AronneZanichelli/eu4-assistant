@@ -8,8 +8,10 @@ from .models import (
     DiplomacyState,
     EconomyState,
     GameSnapshot,
+    IdeasState,
     MilitaryState,
     RiskState,
+    TechState,
 )
 
 
@@ -21,9 +23,6 @@ class SnapshotReadError(Exception):
         self.message = message
 
     def __str__(self) -> str:
-        return self.message
-
-    def __str__(self) -> str:  # pragma: no cover - trivial method
         return self.message
 
 
@@ -49,9 +48,15 @@ class SnapshotReader:
         return GameSnapshot(
             timestamp=payload["timestamp"],
             country=payload.get("country", "UNK"),
+            eu4_date=payload.get("eu4_date", ""),
+            stability=payload.get("stability", 0),
+            prestige=payload.get("prestige", 0.0),
+            legitimacy=payload.get("legitimacy", 100.0),
             economy=EconomyState(**_safe_dict("economy")),
             military=MilitaryState(**_safe_dict("military")),
             diplomacy=DiplomacyState(**_safe_dict("diplomacy")),
             colonial=ColonialState(**_safe_dict("colonial")),
             risk=RiskState(**_safe_dict("risk")),
+            tech=TechState(**_safe_dict("tech")),
+            ideas=IdeasState(**_safe_dict("ideas")),
         )

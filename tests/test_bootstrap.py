@@ -7,6 +7,7 @@ from eu4_assistant_bot.main import run
 
 def test_run_bootstraps_files(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
 
     install = tmp_path / "fake-eu4"
     (install / "common" / "units").mkdir(parents=True)
@@ -44,6 +45,7 @@ def test_run_bootstraps_files(tmp_path: Path, monkeypatch) -> None:
 
 def test_run_falls_back_to_empty_snapshot_on_invalid_json(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
 
     install = tmp_path / "fake-eu4"
     (install / "common" / "units").mkdir(parents=True)
@@ -62,6 +64,7 @@ def test_run_falls_back_to_empty_snapshot_on_invalid_json(tmp_path: Path, monkey
 
 def test_run_uses_save_extract_adapter(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
 
     install = tmp_path / "fake-eu4"
     (install / "common" / "units").mkdir(parents=True)
@@ -95,6 +98,7 @@ def test_run_uses_save_extract_adapter(tmp_path: Path, monkeypatch) -> None:
 def test_run_serializes_risk_codes_as_strings(tmp_path: Path, monkeypatch) -> None:
     """RiskCode Enum values must be serialized as strings in events.jsonl."""
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
 
     install = tmp_path / "fake-eu4"
     (install / "common" / "units").mkdir(parents=True)

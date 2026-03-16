@@ -84,7 +84,7 @@ class StateExtractor:
 
     def _extract_military(self, tree: dict[str, Any], country: str) -> MilitaryState:
         c = self._country_block(tree, country)
-        armies_raw = tree.get("army", [])
+        armies_raw = c.get("army", [])
         if isinstance(armies_raw, dict):
             armies_raw = [armies_raw]
         armies = [a for a in armies_raw if isinstance(a, dict)]

@@ -124,6 +124,28 @@ def test_parse_file_missing_returns_empty(tmp_path):
     assert result == {}
 
 
+# ── anonymous block lists ─────────────────────────────────────────────────────
+
+def test_parse_anonymous_block_list():
+    """{ { ... } { ... } } should parse as a list of dicts."""
+    text = 'armies = {\n    { name = "Army 1" }\n    { name = "Army 2" }\n}'
+    result = ClausewitzTextParser().parse_text(text)
+    assert isinstance(result["armies"], list)
+    assert len(result["armies"]) == 2
+    assert result["armies"][0]["name"] == "Army 1"
+    assert result["armies"][1]["name"] == "Army 2"
+
+
+def test_parse_anonymous_block_list_nested():
+    """Anonymous block list inside a nested block."""
+    text = 'country = {\n    armies = {\n        { name = "A" location = 1 }\n        { name = "B" location = 2 }\n    }\n}'
+    result = ClausewitzTextParser().parse_text(text)
+    armies = result["country"]["armies"]
+    assert isinstance(armies, list)
+    assert len(armies) == 2
+    assert armies[1]["location"] == 2
+
+
 # ── backward compat: ClausewitzParser alias ───────────────────────────────────
 
 def test_legacy_alias_still_works(tmp_path):

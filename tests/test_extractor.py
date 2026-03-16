@@ -35,12 +35,12 @@ FULL_TREE = {
                 {"type": "heretic_rebels"},
                 {"type": "nationalist_rebels"},
             ],
+            "army": [
+                {"name": "Exercito", "location": 1297},
+                {"name": "Guarda",   "location": 230},
+            ],
         }
     },
-    "army": [
-        {"name": "Exercito", "location": 1297},
-        {"name": "Guarda",   "location": 230},
-    ],
 }
 
 
@@ -117,7 +117,11 @@ def test_extract_single_army_not_list():
     """army as dict (single entry) should still work."""
     tree = {
         "player": "ENG",
-        "army": {"name": "Royal Army", "location": 236},
+        "countries": {
+            "ENG": {
+                "army": {"name": "Royal Army", "location": 236},
+            }
+        },
     }
     snap = StateExtractor().extract(tree)
     assert len(snap.military.armies) == 1
