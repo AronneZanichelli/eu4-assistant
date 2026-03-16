@@ -178,4 +178,4 @@ def test_rules_loader_mod_overrides_install(tmp_path):
     (install / "common" / "units" / "western.txt").write_text("maneuver = 1\n")
     (mod / "common" / "units" / "western.txt").write_text("maneuver = 3\n")
     idx = EU4RulesLoader(install, [mod]).load_rules_index()
-    assert idx.units["western"]["maneuver"] == "3"
+    assert idx.units["western"]["maneuver"] == 3

@@ -168,56 +168,10 @@ class ClausewitzTextParser:
     def parse_text(self, text: str) -> dict[str, Any]:
         """Parse a Clausewitz-format string and return a nested dict."""
         tokens = _tokenize(text)
-        result: dict[str, Any] = {}
-        pos = 0
-        n = len(tokens)
-        while pos < n:
-            tok = tokens[pos]
-            if tok in ('{', '}', '='):
-                pos += 1
-                continue
-            if pos + 1 < n and tokens[pos + 1] == '=':
-                key = tok
-                pos += 2
-                if pos >= n:
-                    break
-                if tokens[pos] == '{':
-                    pos += 1
-                    # anonymous block list: { { ... } { ... } }
-                    if pos < n and tokens[pos] == '{':
-                        block_list: list[dict[str, Any]] = []
-                        while pos < n and tokens[pos] != '}':
-                            if tokens[pos] == '{':
-                                pos += 1  # skip inner '{'
-                                child, pos = _parse_block(tokens, pos)
-                                block_list.append(child)
-                            else:
-                                pos += 1
-                        pos += 1  # skip outer '}'
-                        _set_key(result, key, block_list)
-                    else:
-                        peek = pos
-                        is_scalar_list = True
-                        while peek < n and tokens[peek] != '}':
-                            if tokens[peek] == '=':
-                                is_scalar_list = False
-                                break
-                            peek += 1
-                        if is_scalar_list:
-                            items: list[Any] = []
-                            while pos < n and tokens[pos] != '}':
-                                items.append(_coerce(tokens[pos]))
-                                pos += 1
-                            pos += 1
-                            _set_key(result, key, items)
-                        else:
-                            child, pos = _parse_block(tokens, pos)
-                            _set_key(result, key, child)
-                else:
-                    _set_key(result, key, _coerce(tokens[pos]))
-                    pos += 1
-            else:
-                pos += 1
+        # Wrap in virtual braces so _parse_block handles everything uniformly.
+        # Append a sentinel '}' so _parse_block returns at the right position.
+        tokens.append('}')
+        result, _ = _parse_block(tokens, 0)
         return result
 
     def parse_file(self, path: Path) -> dict[str, Any]:
@@ -273,9 +227,9 @@ ClausewitzParser = _LegacyClausewitzParser
 
 @dataclass(slots=True)
 class RulesIndex:
-    units: dict[str, dict[str, str]] = field(default_factory=dict)
-    ideas: dict[str, dict[str, str]] = field(default_factory=dict)
-    modifiers: dict[str, dict[str, str]] = field(default_factory=dict)
+    units: dict[str, dict[str, Any]] = field(default_factory=dict)
+    ideas: dict[str, dict[str, Any]] = field(default_factory=dict)
+    modifiers: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class EU4RulesLoader:
@@ -288,7 +242,7 @@ class EU4RulesLoader:
     def __init__(self, install_path: Path, mod_paths: list[Path] | None = None) -> None:
         self.install_path = install_path
         self.mod_paths = mod_paths or []
-        self.parser = _LegacyClausewitzParser()
+        self.parser = ClausewitzTextParser()
 
     def load_rules_index(self) -> RulesIndex:
         index = RulesIndex()
@@ -301,7 +255,7 @@ class EU4RulesLoader:
             self._load_folder(mod_path / "common" / "event_modifiers", index.modifiers)
         return index
 
-    def _load_folder(self, folder: Path, target: dict[str, dict[str, str]]) -> None:
+    def _load_folder(self, folder: Path, target: dict[str, dict[str, Any]]) -> None:
         if not folder.exists():
             return
         for file in folder.glob("*.txt"):
