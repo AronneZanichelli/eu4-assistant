@@ -209,3 +209,114 @@ def test_extract_no_wars():
     snap = StateExtractor().extract(FULL_TREE)
     assert snap.military.at_war is False
     assert snap.military.wars == []
+
+
+# ── M7: trade nodes, provinces, colonies ────────────────────────────────────
+
+
+def test_extract_trade_nodes_with_merchant():
+    tree = {
+        "player": "POR",
+        "countries": {"POR": {}},
+        "trade": {
+            "node": [
+                {
+                    "definitions": "Sevilla",
+                    "current": 35.2,
+                    "local_value": 12.8,
+                    "merchant": [
+                        {"country": "POR", "type": "steer"},
+                        {"country": "CAS", "type": "collect"},
+                    ],
+                },
+                {
+                    "definitions": "Genoa",
+                    "current": 20.0,
+                    "local_value": 18.5,
+                    "merchant": [{"country": "VEN", "type": "collect"}],
+                },
+            ],
+        },
+    }
+    snap = StateExtractor().extract(tree)
+    # POR has merchant only in Sevilla
+    assert len(snap.trade_nodes) == 1
+    assert snap.trade_nodes[0].id == "Sevilla"
+    assert snap.trade_nodes[0].total_value == pytest.approx(12.8)
+
+
+def test_extract_trade_nodes_empty():
+    snap = StateExtractor().extract(FULL_TREE)
+    assert snap.trade_nodes == []
+
+
+def test_extract_provinces_owned():
+    tree = {
+        "player": "POR",
+        "countries": {"POR": {}},
+        "provinces": {
+            "227": {
+                "name": "Lisboa",
+                "owner": "POR",
+                "base_tax": 6.0,
+                "base_production": 5.0,
+                "base_manpower": 4.0,
+                "trade_goods": "cloth",
+            },
+            "230": {
+                "name": "Madrid",
+                "owner": "CAS",
+                "base_tax": 5.0,
+            },
+        },
+    }
+    snap = StateExtractor().extract(tree)
+    assert len(snap.provinces) == 1
+    prov = snap.provinces[0]
+    assert prov.name == "Lisboa"
+    assert prov.development == pytest.approx(15.0)
+    assert prov.trade_good == "cloth"
+    assert prov.is_colony is False
+
+
+def test_extract_colony_province():
+    tree = {
+        "player": "POR",
+        "countries": {"POR": {}},
+        "provinces": {
+            "1500": {
+                "name": "Azores",
+                "owner": "POR",
+                "base_tax": 1.0,
+                "colonysize": 450,
+                "trade_goods": "fish",
+            },
+        },
+    }
+    snap = StateExtractor().extract(tree)
+    assert len(snap.provinces) == 1
+    assert snap.provinces[0].is_colony is True
+    assert snap.provinces[0].colony_progress == 450
+    # Also in colonial active_colonies
+    assert len(snap.colonial.active_colonies) == 1
+
+
+def test_extract_merchants_count():
+    tree = {
+        "player": "ENG",
+        "countries": {
+            "ENG": {
+                "treasury": 100.0,
+                "income": 15.0,
+                "expenses": 8.0,
+                "merchant": [
+                    {"id": 1, "node": "English Channel"},
+                    {"id": 2, "node": "North Sea"},
+                ],
+                "num_of_merchants": 3,
+            }
+        },
+    }
+    snap = StateExtractor().extract(tree)
+    assert snap.economy.merchants_deployed == 2
+    assert snap.economy.total_merchants == 3

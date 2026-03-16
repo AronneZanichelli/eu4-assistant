@@ -260,6 +260,21 @@ Durante una guerra attiva il military bot gestisce:
 - Dataclass di supporto: `StackScore`, `ArmyAlert`, `RecruitmentPlan`, `WarTarget`.
 - Soglie configurabili: combat width (default 27), engage threshold (1.5), retreat threshold (0.6).
 
+### 8.5c `eu4_assistant_bot.colonial` *(M7)* ✅
+- `ColonialAdvisor`: ranking province per colonizzazione, raccomandazioni.
+  - `rank_provinces()`: score = trade good value × base tax. Tabella valori trade good (gold=10, spices=6, ivory=5, ...).
+  - `recommend_colonization()`: verifica coloni disponibili, segnala colonie in corso o necessità di inviare colono.
+- Dataclass di supporto: `ColonyRanking`, `ColonizationPlan`.
+- Due modalità (autonomo / lista target) gestite a livello config, non nel modulo.
+
+### 8.5d `eu4_assistant_bot.economy` *(M7)* ✅
+- `EconomyAdvisor`: steering mercanti, tech alerts, bilancio preventivo.
+  - `recommend_merchant_steering()`: collect sul nodo a maggior valore, steer sugli altri.
+  - `check_tech_readiness()`: alert quando monarch points < costo prossimo tech.
+  - `check_balance()`: alert preventivo quando bilancio mensile < soglia (default 1 ducato).
+- Dataclass di supporto: `MerchantAdvice`, `TechAlert`, `BalanceAlert`.
+- `_estimate_tech_cost()`: formula semplificata (600 base + 50 × livelli sopra 3).
+
 ### 8.5 `eu4_assistant_bot.decision_engine` *(esteso M6, M7)*
 - Risk evaluation + top-3 raccomandazioni ordinate per priorità.
 - **M6 — Military:** 
@@ -428,7 +443,7 @@ Non altera regole di gioco. Compatibile con achievement.
 | **M4** ✅ | FileWatcher + StateExtractor + GameSnapshot v2 + DLC compat + path autodetect | M3 |
 | **M5** ✅ | UI PyQt6 base (Dashboard + Advisor + Log, dati live) + PauseController + hotkey | M4 |
 | **M6** ✅ | Military logic reale (stack scoring, army advisor) | M4, M5 |
-| **M7** | Colonial + Economy logic reale | M4, M5 |
+| **M7** ✅ | Colonial + Economy logic reale | M4, M5 |
 | **M8** | ActionExecutor reale (pyautogui) + semi-bot confirm + full-bot params UI | M5, M6, M7 |
 | **M9** | QA: test end-to-end, stabilità, crash hardening, DLC regression | tutti |
 | **M10** | Packaging PyInstaller + changelog system + docs | M9 |
@@ -497,7 +512,7 @@ Non altera regole di gioco. Compatibile con achievement.
 | M4 — FileWatcher + StateExtractor + DLC compat | ✅ Completato |
 | M5 — UI PyQt6 + PauseController + hotkey | ✅ Completato |
 | M6 — Military logic | ✅ Completato |
-| M7 — Colonial + Economy logic | ⏳ Prossimo |
-| M8 — ActionExecutor reale + full-bot UI | 🔜 Pianificato |
+| M7 — Colonial + Economy logic | ✅ Completato |
+| M8 — ActionExecutor reale + full-bot UI | ⏳ Prossimo |
 | M9 — QA / stabilità / crash hardening | 🔜 Pianificato |
 | M10 — Packaging + changelog | 🔜 Pianificato |

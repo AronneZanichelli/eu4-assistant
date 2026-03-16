@@ -14,6 +14,7 @@ class EconomyState:
     expenses: float = 0.0
     debt: float = 0.0
     merchants_deployed: int = 0
+    total_merchants: int = 0
 
 
 @dataclass(slots=True)
@@ -33,8 +34,11 @@ class ProvinceState:
     name: str = ""
     owner: str = ""
     development: float = 0.0
+    base_tax: float = 0.0
     unrest: float = 0.0
     trade_good: str = ""
+    is_colony: bool = False
+    colony_progress: int = 0  # 0–1000
 
 
 @dataclass(slots=True)
@@ -86,6 +90,7 @@ class DiplomacyState:
 @dataclass(slots=True)
 class ColonialState:
     colonists_free: int = 0
+    total_colonists: int = 0
     active_colonies: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -133,6 +138,8 @@ class GameSnapshot:
     risk: RiskState = field(default_factory=RiskState)
     tech: TechState = field(default_factory=TechState)
     ideas: IdeasState = field(default_factory=IdeasState)
+    trade_nodes: list[TradeNodeState] = field(default_factory=list)
+    provinces: list[ProvinceState] = field(default_factory=list)
 
     @classmethod
     def empty(cls, country: str = "UNK") -> "GameSnapshot":

@@ -12,8 +12,10 @@ from .models import (
     GameSnapshot,
     IdeasState,
     MilitaryState,
+    ProvinceState,
     RiskState,
     TechState,
+    TradeNodeState,
     WarState,
 )
 
@@ -49,13 +51,15 @@ class StateExtractor:
             default=100.0,
         )
 
-        economy  = self._extract_economy(tree, country)
-        military = self._extract_military(tree, country)
-        diplomacy = self._extract_diplomacy(tree, country)
-        colonial  = self._extract_colonial(tree, country)
-        risk      = self._extract_risk(tree, country)
-        tech      = self._extract_tech(tree, country)
-        ideas     = self._extract_ideas(tree, country)
+        economy     = self._extract_economy(tree, country)
+        military    = self._extract_military(tree, country)
+        diplomacy   = self._extract_diplomacy(tree, country)
+        colonial    = self._extract_colonial(tree, country)
+        risk        = self._extract_risk(tree, country)
+        tech        = self._extract_tech(tree, country)
+        ideas       = self._extract_ideas(tree, country)
+        trade_nodes = self._extract_trade_nodes(tree, country)
+        provinces   = self._extract_provinces(tree, country)
 
         return GameSnapshot(
             timestamp=timestamp,
@@ -71,17 +75,27 @@ class StateExtractor:
             risk=risk,
             tech=tech,
             ideas=ideas,
+            trade_nodes=trade_nodes,
+            provinces=provinces,
         )
 
     # ── Sub-extractors ────────────────────────────────────────────────────────
 
     def _extract_economy(self, tree: dict[str, Any], country: str) -> EconomyState:
         c = self._country_block(tree, country)
+        # Count deployed and total merchants
+        merchants_raw = c.get("merchant", [])
+        if isinstance(merchants_raw, dict):
+            merchants_raw = [merchants_raw]
+        deployed = len(merchants_raw) if isinstance(merchants_raw, list) else 0
+        total_merchants = self._int(c.get("num_of_merchants"), default=0)
         return EconomyState(
             treasury=self._float(c.get("treasury"),    default=0.0),
             income=self._float(c.get("income"),        default=0.0),
             expenses=self._float(c.get("expenses"),    default=0.0),
             debt=self._float(c.get("loan_size"),       default=0.0),
+            merchants_deployed=deployed,
+            total_merchants=total_merchants,
         )
 
     def _extract_military(self, tree: dict[str, Any], country: str) -> MilitaryState:
@@ -204,9 +218,27 @@ class StateExtractor:
         colonists = c.get("colonists", 0)
         if isinstance(colonists, list):
             colonists = len(colonists)
+        total_colonists = self._int(c.get("num_of_colonists"), default=0)
+        # Active colonies from provinces section
+        active: list[dict[str, Any]] = []
+        provinces = tree.get("provinces", {})
+        if isinstance(provinces, dict):
+            for prov_id, prov in provinces.items():
+                if not isinstance(prov, dict):
+                    continue
+                if prov.get("owner") != country:
+                    continue
+                col_size = prov.get("colonysize")
+                if col_size is not None:
+                    active.append({
+                        "province_id": prov_id,
+                        "name": str(prov.get("name", "")),
+                        "progress": self._int(col_size, default=0),
+                    })
         return ColonialState(
             colonists_free=self._int(colonists, default=0),
-            active_colonies=[],
+            total_colonists=total_colonists,
+            active_colonies=active,
         )
 
     def _extract_risk(self, tree: dict[str, Any], country: str) -> RiskState:
@@ -258,6 +290,62 @@ class StateExtractor:
             ideas_in_current_group=ideas_in_current,
             free_policies=self._int(c.get("free_policies"), default=0),
         )
+
+    def _extract_trade_nodes(self, tree: dict[str, Any], country: str) -> list[TradeNodeState]:
+        """Extract trade nodes where the player has merchants deployed."""
+        trade_section = tree.get("trade", {})
+        if not isinstance(trade_section, dict):
+            return []
+        nodes_raw = trade_section.get("node", [])
+        if isinstance(nodes_raw, dict):
+            nodes_raw = [nodes_raw]
+        result: list[TradeNodeState] = []
+        for node in nodes_raw:
+            if not isinstance(node, dict):
+                continue
+            # Check if country has a merchant here
+            merchants_raw = node.get("merchant", [])
+            if isinstance(merchants_raw, dict):
+                merchants_raw = [merchants_raw]
+            has_merchant = False
+            for m in merchants_raw:
+                if isinstance(m, dict) and m.get("country") == country:
+                    has_merchant = True
+                    break
+            if not has_merchant:
+                continue
+            result.append(TradeNodeState(
+                id=self._str(node.get("definitions"), default=""),
+                our_power=self._float(node.get("current"), default=0.0),
+                total_value=self._float(node.get("local_value"), default=0.0),
+                merchants=1,
+            ))
+        return result
+
+    def _extract_provinces(self, tree: dict[str, Any], country: str) -> list[ProvinceState]:
+        """Extract provinces owned by the player."""
+        provinces_raw = tree.get("provinces", {})
+        if not isinstance(provinces_raw, dict):
+            return []
+        result: list[ProvinceState] = []
+        for prov_id_str, prov in provinces_raw.items():
+            if not isinstance(prov, dict):
+                continue
+            if prov.get("owner") != country:
+                continue
+            col_size = prov.get("colonysize")
+            result.append(ProvinceState(
+                province_id=self._int(prov_id_str, default=0),
+                name=self._str(prov.get("name"), default=""),
+                owner=country,
+                development=self._float(prov.get("base_tax", 0)) + self._float(prov.get("base_production", 0)) + self._float(prov.get("base_manpower", 0)),
+                base_tax=self._float(prov.get("base_tax"), default=0.0),
+                unrest=self._float(prov.get("unrest"), default=0.0),
+                trade_good=self._str(prov.get("trade_goods"), default=""),
+                is_colony=col_size is not None,
+                colony_progress=self._int(col_size, default=0) if col_size is not None else 0,
+            ))
+        return result
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

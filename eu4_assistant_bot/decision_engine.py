@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .colonial import ColonialAdvisor
 from .config import DecisionThresholds
+from .economy import EconomyAdvisor
 from .military import MilitaryAdvisor
 from .models import ActionPlan, GameSnapshot
 
@@ -14,10 +16,14 @@ _PRIO_DEBT = 0.92
 _PRIO_MANPOWER = 0.90
 _PRIO_REBELS = 0.86
 _PRIO_ARMY_ALERT = 0.82
+_PRIO_BALANCE = 0.80
 _PRIO_EXPANSION = 0.78
 _PRIO_RECRUIT = 0.75
+_PRIO_COLONIZE = 0.70
 _PRIO_TRADE = 0.72
 _PRIO_TECH = 0.68
+_PRIO_MERCHANT = 0.66
+_PRIO_TECH_ALERT = 0.64
 
 
 @dataclass(slots=True)
@@ -61,9 +67,13 @@ class DecisionEngine:
         self,
         thresholds: DecisionThresholds | None = None,
         military_advisor: MilitaryAdvisor | None = None,
+        colonial_advisor: ColonialAdvisor | None = None,
+        economy_advisor: EconomyAdvisor | None = None,
     ):
         self.thresholds = thresholds or DecisionThresholds()
         self.military = military_advisor or MilitaryAdvisor()
+        self.colonial = colonial_advisor or ColonialAdvisor()
+        self.economy = economy_advisor or EconomyAdvisor()
 
     def evaluate_risks(self, snapshot: GameSnapshot) -> RiskAlerts:
         monthly_balance = snapshot.economy.income - snapshot.economy.expenses
@@ -191,6 +201,10 @@ class DecisionEngine:
         # ── M6: Military recommendations ────────────────────────────────────
         recommendations.extend(self._military_recommendations(snapshot))
 
+        # ── M7: Colonial + Economy recommendations ────────────────────────
+        recommendations.extend(self._colonial_recommendations(snapshot))
+        recommendations.extend(self._economy_recommendations(snapshot))
+
         if not recommendations:
             recommendations.extend(
                 [
@@ -261,6 +275,57 @@ class DecisionEngine:
                 rationale=plan.reason,
                 priority=_PRIO_RECRUIT,
                 category="military",
+            ))
+
+        return recs
+
+    def _colonial_recommendations(self, snapshot: GameSnapshot) -> list[Recommendation]:
+        """Generate colonial recommendations (M7)."""
+        recs: list[Recommendation] = []
+        plan = self.colonial.recommend_colonization(snapshot)
+        if plan is not None and plan.colonists_available > 0:
+            recs.append(Recommendation(
+                title="Invia colono",
+                rationale=plan.reason,
+                priority=_PRIO_COLONIZE,
+                category="colonial",
+            ))
+        return recs
+
+    def _economy_recommendations(self, snapshot: GameSnapshot) -> list[Recommendation]:
+        """Generate economy recommendations (M7)."""
+        recs: list[Recommendation] = []
+
+        # Balance alert (preventive)
+        balance_alert = self.economy.check_balance(snapshot)
+        if balance_alert is not None:
+            recs.append(Recommendation(
+                title="Bilancio in calo",
+                rationale=balance_alert.message,
+                priority=_PRIO_BALANCE,
+                category="economy",
+            ))
+
+        # Merchant steering
+        advice = self.economy.recommend_merchant_steering(snapshot)
+        if advice:
+            top = advice[0]
+            recs.append(Recommendation(
+                title=f"Mercante: {top.action} a {top.node_id}",
+                rationale=top.reason,
+                priority=_PRIO_MERCHANT,
+                category="economy",
+            ))
+
+        # Tech alerts
+        tech_alerts = self.economy.check_tech_readiness(snapshot)
+        if tech_alerts:
+            first = tech_alerts[0]
+            recs.append(Recommendation(
+                title=f"Tech {first.tech_type.upper()} non pronta",
+                rationale=first.message,
+                priority=_PRIO_TECH_ALERT,
+                category="technology",
             ))
 
         return recs
@@ -348,6 +413,24 @@ class DecisionEngine:
                     "target_metric": "rebels_risk",
                     "current_value": snapshot.risk.rebels,
                     "target_below": self.thresholds.rebels_risk_threshold,
+                },
+            )
+
+        if recommendation.category == "colonial":
+            return (
+                "colonial_send_colonist",
+                {
+                    "target_metric": "colonists_free",
+                    "current_value": snapshot.colonial.colonists_free,
+                },
+            )
+
+        if recommendation.category == "technology":
+            return (
+                "economy_tech_preparation",
+                {
+                    "target_metric": "monarch_points",
+                    "current_value": "accumulate",
                 },
             )
 
