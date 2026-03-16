@@ -113,29 +113,41 @@ def _parse_block(tokens: list[str], pos: int) -> tuple[dict[str, Any], int]:
 
             if tokens[pos] == '{':
                 pos += 1  # skip '{'
-                # peek: is this a scalar list or a block?
-                # scalar list: no '=' inside before first '}'
-                # heuristic: look at first non-brace token
-                peek = pos
-                is_scalar_list = True
-                while peek < n and tokens[peek] != '}':
-                    if tokens[peek] == '=':
-                        is_scalar_list = False
-                        break
-                    peek += 1
-
-                if is_scalar_list:
-                    # collect scalars until '}'
-                    items: list[Any] = []
+                # anonymous block list: { { ... } { ... } }
+                if pos < n and tokens[pos] == '{':
+                    block_list: list[dict[str, Any]] = []
                     while pos < n and tokens[pos] != '}':
-                        items.append(_coerce(tokens[pos]))
-                        pos += 1
-                    pos += 1  # skip '}'
-                    _set_key(result, key, items)
+                        if tokens[pos] == '{':
+                            pos += 1  # skip inner '{'
+                            child, pos = _parse_block(tokens, pos)
+                            block_list.append(child)
+                        else:
+                            pos += 1  # skip unexpected tokens
+                    pos += 1  # skip outer '}'
+                    _set_key(result, key, block_list)
                 else:
-                    # recursive block
-                    child, pos = _parse_block(tokens, pos)
-                    _set_key(result, key, child)
+                    # peek: is this a scalar list or a block?
+                    # scalar list: no '=' inside before first '}'
+                    peek = pos
+                    is_scalar_list = True
+                    while peek < n and tokens[peek] != '}':
+                        if tokens[peek] == '=':
+                            is_scalar_list = False
+                            break
+                        peek += 1
+
+                    if is_scalar_list:
+                        # collect scalars until '}'
+                        items: list[Any] = []
+                        while pos < n and tokens[pos] != '}':
+                            items.append(_coerce(tokens[pos]))
+                            pos += 1
+                        pos += 1  # skip '}'
+                        _set_key(result, key, items)
+                    else:
+                        # recursive block
+                        child, pos = _parse_block(tokens, pos)
+                        _set_key(result, key, child)
             else:
                 _set_key(result, key, _coerce(tokens[pos]))
                 pos += 1
@@ -171,23 +183,36 @@ class ClausewitzTextParser:
                     break
                 if tokens[pos] == '{':
                     pos += 1
-                    peek = pos
-                    is_scalar_list = True
-                    while peek < n and tokens[peek] != '}':
-                        if tokens[peek] == '=':
-                            is_scalar_list = False
-                            break
-                        peek += 1
-                    if is_scalar_list:
-                        items = []
+                    # anonymous block list: { { ... } { ... } }
+                    if pos < n and tokens[pos] == '{':
+                        block_list: list[dict[str, Any]] = []
                         while pos < n and tokens[pos] != '}':
-                            items.append(_coerce(tokens[pos]))
-                            pos += 1
-                        pos += 1
-                        _set_key(result, key, items)
+                            if tokens[pos] == '{':
+                                pos += 1  # skip inner '{'
+                                child, pos = _parse_block(tokens, pos)
+                                block_list.append(child)
+                            else:
+                                pos += 1
+                        pos += 1  # skip outer '}'
+                        _set_key(result, key, block_list)
                     else:
-                        child, pos = _parse_block(tokens, pos)
-                        _set_key(result, key, child)
+                        peek = pos
+                        is_scalar_list = True
+                        while peek < n and tokens[peek] != '}':
+                            if tokens[peek] == '=':
+                                is_scalar_list = False
+                                break
+                            peek += 1
+                        if is_scalar_list:
+                            items: list[Any] = []
+                            while pos < n and tokens[pos] != '}':
+                                items.append(_coerce(tokens[pos]))
+                                pos += 1
+                            pos += 1
+                            _set_key(result, key, items)
+                        else:
+                            child, pos = _parse_block(tokens, pos)
+                            _set_key(result, key, child)
                 else:
                     _set_key(result, key, _coerce(tokens[pos]))
                     pos += 1
