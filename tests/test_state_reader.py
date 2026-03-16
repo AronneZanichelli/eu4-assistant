@@ -1,3 +1,5 @@
+"""Tests for SnapshotReader (JSON snapshot loading)."""
+
 from pathlib import Path
 
 import pytest

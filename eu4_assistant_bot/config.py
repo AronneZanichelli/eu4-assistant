@@ -1,3 +1,9 @@
+"""Application configuration, bot modes and risk profiles.
+
+All paths use ``default_factory`` so that ``Path.home()`` is resolved at
+instantiation time, not at import time — this keeps the config testable.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace

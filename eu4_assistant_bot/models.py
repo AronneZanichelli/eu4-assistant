@@ -1,3 +1,10 @@
+"""Core data models for game-state representation.
+
+:class:`GameSnapshot` is the central typed container that flows through the
+entire pipeline.  All sub-states use ``slots=True`` dataclasses with safe
+defaults so that missing save-file fields never cause crashes.
+"""
+
 from __future__ import annotations
 
 import json
@@ -58,6 +65,7 @@ class DiplomacyState:
     truces: list[dict[str, Any]] = field(default_factory=list)
     alliances: list[str] = field(default_factory=list)
     ae_map: dict[str, int] = field(default_factory=dict)
+    active_wars: int = 0  # number of wars the country is currently involved in
 
 
 @dataclass(slots=True)

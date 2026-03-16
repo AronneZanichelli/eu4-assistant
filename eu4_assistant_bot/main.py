@@ -1,3 +1,10 @@
+"""CLI entry point for the EU4 Assistant + Bot.
+
+Bootstraps configuration, loads rules, reads a snapshot (JSON or key=value
+extract), runs the decision engine and simulated executor, then emits a
+startup event.  This will be superseded by the PyQt6 UI entry point in M5.
+"""
+
 from __future__ import annotations
 
 import argparse

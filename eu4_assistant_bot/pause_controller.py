@@ -59,8 +59,7 @@ class PauseController:
         self._on_pause = on_pause
         self._send_key = send_key or _default_send_key
         # Track previous snapshot to detect *new* wars
-        self._prev_truces_count: int | None = None
-        self._prev_alliances: set[str] | None = None
+        self._prev_active_wars: int | None = None
         # Cooldown: don't spam pause for the same reason within one cycle
         self._last_reason: PauseReason | None = None
 
@@ -80,8 +79,7 @@ class PauseController:
             self._last_reason = None
 
         # Update state for next comparison
-        self._prev_truces_count = len(snapshot.diplomacy.truces)
-        self._prev_alliances = set(snapshot.diplomacy.alliances)
+        self._prev_active_wars = snapshot.diplomacy.active_wars
         return event
 
     def _evaluate(self, snap: GameSnapshot) -> PauseEvent | None:
@@ -94,15 +92,15 @@ class PauseController:
                     snapshot=snap,
                 )
 
-        # 2. War declared — detect via new truces appearing
-        #    (when someone declares war, a truce entry appears on next save)
-        if self._prev_truces_count is not None:
-            current_truces = len(snap.diplomacy.truces)
-            if current_truces > self._prev_truces_count:
+        # 2. War declared — detect via active_wars count increasing.
+        #    Truces appear at END of war, not at declaration — so we track
+        #    the number of active wars the country is involved in.
+        if self._prev_active_wars is not None:
+            if snap.diplomacy.active_wars > self._prev_active_wars:
                 if self._last_reason != PauseReason.WAR_DECLARED:
                     return PauseEvent(
                         reason=PauseReason.WAR_DECLARED,
-                        message="Nuova guerra rilevata (truces aumentate)",
+                        message=f"Nuova guerra rilevata ({snap.diplomacy.active_wars} attive, prima {self._prev_active_wars})",
                         snapshot=snap,
                     )
 

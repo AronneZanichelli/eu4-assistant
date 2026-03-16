@@ -1,3 +1,5 @@
+"""Tests for SaveSnapshotAdapter (key=value format)."""
+
 from pathlib import Path
 
 import pytest

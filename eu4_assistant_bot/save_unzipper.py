@@ -1,3 +1,10 @@
+"""EU4 save file decompressor.
+
+EU4 saves are ZIP archives containing ``gamestate``, ``meta`` and ``ai``
+entries.  Plain-text saves (uncompressed) are also supported.  Ironman
+binary saves are out of scope for v1.0.
+"""
+
 from __future__ import annotations
 
 import zipfile

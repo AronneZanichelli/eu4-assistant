@@ -1,3 +1,13 @@
+"""Clausewitz text-format parser and EU4 rules loader.
+
+:class:`ClausewitzTextParser` is the full recursive parser introduced in M3.
+It tokenises and parses the Clausewitz text format used by EU4 save files,
+producing a nested ``dict[str, Any]`` tree.
+
+:class:`EU4RulesLoader` reads unit, idea and modifier definitions from the
+EU4 install directory (and optional mod overrides) into a :class:`RulesIndex`.
+"""
+
 from __future__ import annotations
 
 import logging

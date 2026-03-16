@@ -1,3 +1,5 @@
+"""Tests for ModBuilder install, update and idempotency."""
+
 from pathlib import Path
 import pytest
 from eu4_assistant_bot.mod import ModBuilder, ModInstallResult, ModInstallStatus

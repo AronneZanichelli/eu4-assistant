@@ -1,3 +1,10 @@
+"""Reader for normalised JSON snapshots.
+
+:class:`SnapshotReader` loads a JSON file previously written by
+:meth:`~eu4_assistant_bot.models.GameSnapshot.save` and reconstructs a
+:class:`~eu4_assistant_bot.models.GameSnapshot`.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

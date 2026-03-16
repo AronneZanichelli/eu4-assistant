@@ -1,3 +1,5 @@
+"""Tests for SaveUnzipper (ZIP and plain-text saves)."""
+
 import zipfile
 from pathlib import Path
 import pytest

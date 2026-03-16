@@ -1,3 +1,5 @@
+"""Tests for AppConfig, build_config and risk profile presets."""
+
 from pathlib import Path
 
 from eu4_assistant_bot.config import AppConfig, BotMode, RiskProfile, build_config

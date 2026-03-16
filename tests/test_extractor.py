@@ -1,3 +1,5 @@
+"""Tests for StateExtractor — Clausewitz tree to GameSnapshot."""
+
 import pytest
 from eu4_assistant_bot.extractor import StateExtractor
 
