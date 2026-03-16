@@ -23,6 +23,7 @@ from .parser import ClausewitzTextParser
 from .save_adapter import SaveAdapterError, SaveSnapshotAdapter
 from .save_unzipper import SaveFormatError, SaveUnzipper
 from .state_reader import SnapshotReadError, SnapshotReader
+from .pause_controller import PauseController, PauseEvent, PauseReason
 from .watcher import FileWatcher, SaveEvent, SaveEventType
 
 __all__ = [
@@ -39,5 +40,6 @@ __all__ = [
     "SaveSnapshotAdapter", "SaveAdapterError",
     "ClausewitzTextParser",
     "SaveUnzipper", "SaveFormatError",
+    "PauseController", "PauseEvent", "PauseReason",
     "FileWatcher", "SaveEvent", "SaveEventType",
 ]
