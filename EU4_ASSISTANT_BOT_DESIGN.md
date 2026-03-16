@@ -191,23 +191,34 @@ Al primo avvio, l'app cerca automaticamente:
 
 ## 8. Moduli
 
-### 8.1 `eu4_assistant_bot.watcher` *(M4)*
+### 8.1 `eu4_assistant_bot.watcher` *(M4)* ✅
 - `watchdog` monitora `autosave.eu4`, emette `SaveChanged` con debounce 500ms.
-- Thread separato, comunica via queue thread-safe.
+- Thread separato, comunica via queue thread-safe. `_last_change` protetto da `threading.Lock`.
 - Emette anche `GamePaused` se nessun nuovo autosave arriva entro un timeout configurabile (default: 3 minuti) — segnala al bot di entrare in pausa automatica.
 
-### 8.2 `eu4_assistant_bot.parser` *(M3)*
+### 8.2 `eu4_assistant_bot.parser` *(M3)* ✅
 - `ClausewitzTextParser`: parser ricorsivo completo per save testuali.
-  - Gestisce blocchi annidati, liste, stringhe quotate, date `YYYY.MM.DD`.
+  - Gestisce blocchi annidati, liste scalari, liste di blocchi anonimi, stringhe quotate, date `YYYY.MM.DD`.
+  - `parse_text()` delega a `_parse_block()` (deduplicazione completata).
   - Output: albero dizionario Python nativo.
+- `EU4RulesLoader`: migrato a `ClausewitzTextParser` (legacy parser deprecato). `RulesIndex` usa `dict[str, Any]`.
 - `SaveUnzipper`: decompressione ZIP pre-parsing.
 
-### 8.3 `eu4_assistant_bot.extractor` *(M4)*
+### 8.3 `eu4_assistant_bot.extractor` *(M4)* ✅
 - `StateExtractor`: albero Clausewitz grezzo → `GameSnapshot` tipizzato.
 - Parsing difensivo su ogni campo, default safe se assente.
 - Gestisce sezioni opzionali DLC (estates, parliaments, fervor, ecc.).
 
-### 8.4 `eu4_assistant_bot.models` *(esteso M4, M6, M7)*
+### 8.4 `eu4_assistant_bot.models` *(esteso M4, M6, M7)* — modelli tipizzati ✅
+
+Dataclass tipizzate implementate:
+- `EconomyState` — treasury, income, expenses, debt, merchants_deployed
+- `ArmyState` — id, name, location, strength, composition *(implementato pre-M5)*
+- `ProvinceState` — province_id, name, owner, development, unrest, trade_good *(implementato pre-M5)*
+- `TradeNodeState` — id, our_power, total_value, merchants *(implementato pre-M5)*
+- `MilitaryState.armies` → `list[ArmyState]` (non più `list[dict]`)
+- `RiskState` — coalition, rebels, ae_max
+
 ```python
 @dataclass
 class GameSnapshot:
@@ -218,20 +229,14 @@ class GameSnapshot:
     stability: int          # -3 → +3
     prestige: float
     legitimacy: float
-    # Esistenti
+    # Sub-states
     economy: EconomyState
-    military: MilitaryState
+    military: MilitaryState   # armies: list[ArmyState]
     diplomacy: DiplomacyState
     colonial: ColonialState
-    risk: RiskState
-    # M4
-    tech: TechState         # adm/dip/mil + costo prossimo tech
-    ideas: IdeasState       # gruppi completati, in corso, punti liberi
-    # M6
-    armies: list[ArmyState]            # posizione, composizione
-    provinces: list[ProvinceState]     # unrest, owner, development
-    # M7
-    trade_nodes: list[TradeNodeState]  # power, value, merchants
+    risk: RiskState           # coalition, rebels, ae_max
+    tech: TechState           # adm/dip/mil + punti monarch
+    ideas: IdeasState         # gruppi completati, in corso, punti liberi
 ```
 
 ### 8.4b Scope military bot in guerra
@@ -274,14 +279,14 @@ Durante una guerra attiva il military bot gestisce:
 - **Annulla ultima azione:** disponibile solo per azioni critiche (pace, cessione province, indennità elevate) tramite tasto dedicato nel banner di conferma. Non implementato per azioni reversibili.
 - **Comportamento se EU4 è in pausa:** il bot rileva che il gioco è fermo (nessun nuovo autosave dopo timeout configurabile), entra in stato `pausa automatica` e mostra avviso "EU4 in pausa — bot in attesa". Riprende automaticamente al primo nuovo autosave.
 
-### 8.7 `eu4_assistant_bot.pause_controller` *(M5)*
+### 8.7 `eu4_assistant_bot.pause_controller` *(M5)* ✅
 - Monitora snapshot per condizioni di pausa automatica.
 - Invia keypress `F1` a EU4 quando rileva:
   - Unrest massimo in almeno una provincia (`rebels_imminent`)
   - Nuovo stato di guerra attivo dichiarato contro il giocatore (`war_declared`)
 - Log dell'evento nel feed UI.
 
-### 8.8 `eu4_assistant_bot.ui` *(M5)*
+### 8.8 `eu4_assistant_bot.ui` *(M5)* ✅
 Costruito con PyQt6. Layout a tre colonne sul secondo monitor.
 
 **Dashboard (sinistra):**
@@ -307,7 +312,7 @@ Costruito con PyQt6. Layout a tre colonne sul secondo monitor.
 - Hotkey `F2` mostra/nasconde
 - Tema scuro nativo
 
-### 8.9 `eu4_assistant_bot.mod` *(M3)*
+### 8.9 `eu4_assistant_bot.mod` *(M3)* ✅
 Mod minimale che forza autosave mensile:
 ```
 eu4_assistant_autosave/
@@ -317,7 +322,7 @@ eu4_assistant_autosave/
 ```
 Non altera regole di gioco. Compatibile con achievement.
 
-### 8.10 `eu4_assistant_bot.config` *(esteso M4)*
+### 8.10 `eu4_assistant_bot.config` *(esteso M4)* ✅
 - Rilevamento automatico percorsi EU4 e Documents al primo avvio.
 - Persistenza su `~/.eu4-assistant/`:
   - `config.json` — percorsi, preferenze UI, modalità attiva, hotkey
@@ -412,9 +417,9 @@ Non altera regole di gioco. Compatibile con achievement.
 |---|---|---|
 | **M1** ✅ | Foundation: config, models, telemetry, parser PoC, CLI | — |
 | **M2** ✅ | Decision engine + risk alerts + simulated executor | M1 |
-| **M3** | ClausewitzTextParser completo + SaveUnzipper + mod autosave | M1 |
-| **M4** | FileWatcher + StateExtractor + GameSnapshot v2 + DLC compat + path autodetect | M3 |
-| **M5** | UI PyQt6 base (Dashboard + Advisor + Log, dati live) + PauseController + hotkey | M4 |
+| **M3** ✅ | ClausewitzTextParser completo + SaveUnzipper + mod autosave | M1 |
+| **M4** ✅ | FileWatcher + StateExtractor + GameSnapshot v2 + DLC compat + path autodetect | M3 |
+| **M5** ✅ | UI PyQt6 base (Dashboard + Advisor + Log, dati live) + PauseController + hotkey | M4 |
 | **M6** | Military logic reale (stack scoring, army advisor) | M4, M5 |
 | **M7** | Colonial + Economy logic reale | M4, M5 |
 | **M8** | ActionExecutor reale (pyautogui) + semi-bot confirm + full-bot params UI | M5, M6, M7 |
@@ -481,10 +486,10 @@ Non altera regole di gioco. Compatibile con achievement.
 |---|---|
 | M1 — Foundation | ✅ Completato |
 | M2 — Decision engine + simulated executor | ✅ Completato |
-| M3 — Parser Clausewitz completo + mod | ⏳ Prossimo |
-| M4 — FileWatcher + StateExtractor + DLC compat | 🔜 Pianificato |
-| M5 — UI PyQt6 + PauseController + hotkey | 🔜 Pianificato |
-| M6 — Military logic | 🔜 Pianificato |
+| M3 — Parser Clausewitz completo + mod | ✅ Completato |
+| M4 — FileWatcher + StateExtractor + DLC compat | ✅ Completato |
+| M5 — UI PyQt6 + PauseController + hotkey | ✅ Completato |
+| M6 — Military logic | ⏳ Prossimo |
 | M7 — Colonial + Economy logic | 🔜 Pianificato |
 | M8 — ActionExecutor reale + full-bot UI | 🔜 Pianificato |
 | M9 — QA / stabilità / crash hardening | 🔜 Pianificato |
