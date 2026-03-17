@@ -1,3 +1,11 @@
+"""Clausewitz parse-tree to typed GameSnapshot extractor.
+
+:class:`StateExtractor` walks the raw ``dict`` produced by
+:class:`~eu4_assistant_bot.parser.ClausewitzTextParser` and builds a fully
+typed :class:`~eu4_assistant_bot.models.GameSnapshot`.  Every field access
+is defensive: missing or malformed values fall back to safe defaults.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -207,10 +215,14 @@ class StateExtractor:
         elif not isinstance(truce_raw, list):
             truce_raw = []
 
+        # Count active wars involving the player country
+        active_wars = self._count_active_wars(tree, country)
+
         return DiplomacyState(
             truces=truce_raw,
             alliances=alliances,
             ae_map={},
+            active_wars=active_wars,
         )
 
     def _extract_colonial(self, tree: dict[str, Any], country: str) -> ColonialState:
@@ -291,7 +303,7 @@ class StateExtractor:
             free_policies=self._int(c.get("free_policies"), default=0),
         )
 
-    def _extract_trade_nodes(self, tree: dict[str, Any], country: str) -> list[TradeNodeState]:
+      def _extract_trade_nodes(self, tree: dict[str, Any], country: str) -> list[TradeNodeState]:
         """Extract trade nodes where the player has merchants deployed."""
         trade_section = tree.get("trade", {})
         if not isinstance(trade_section, dict):
@@ -303,15 +315,13 @@ class StateExtractor:
         for node in nodes_raw:
             if not isinstance(node, dict):
                 continue
-            # Check if country has a merchant here
             merchants_raw = node.get("merchant", [])
             if isinstance(merchants_raw, dict):
                 merchants_raw = [merchants_raw]
-            has_merchant = False
-            for m in merchants_raw:
-                if isinstance(m, dict) and m.get("country") == country:
-                    has_merchant = True
-                    break
+            has_merchant = any(
+                isinstance(m, dict) and m.get("country") == country
+                for m in merchants_raw
+            )
             if not has_merchant:
                 continue
             result.append(TradeNodeState(
@@ -347,7 +357,32 @@ class StateExtractor:
             ))
         return result
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    # ── War detection ────────────────────────────────────────────────────────
+
+    def _count_active_wars(self, tree: dict[str, Any], country: str) -> int:
+        """Count top-level active_war entries involving country."""
+        wars_raw = tree.get("active_war", [])
+        if isinstance(wars_raw, dict):
+            wars_raw = [wars_raw]
+        if not isinstance(wars_raw, list):
+            return 0
+        count = 0
+        for war in wars_raw:
+            if not isinstance(war, dict):
+                continue
+            for side in ("participants", "attacker", "defender",
+                         "original_attacker", "original_defender"):
+                val = war.get(side, "")
+                if isinstance(val, str) and val == country:
+                    count += 1
+                    break
+                if isinstance(val, list) and country in val:
+                    count += 1
+                    break
+                if isinstance(val, dict) and country in val.values():
+                    count += 1
+                    break
+        return count
 
     def _country_block(self, tree: dict[str, Any], country: str) -> dict[str, Any]:
         """Return the country sub-block, or empty dict if not found."""

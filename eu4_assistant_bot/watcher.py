@@ -1,3 +1,10 @@
+"""File-system watcher for EU4 autosave files.
+
+:class:`FileWatcher` uses ``watchdog`` to monitor the autosave file and emits
+:class:`SaveEvent` objects on a thread-safe queue.  It also detects when EU4
+is paused (no new save within a configurable timeout).
+"""
+
 from __future__ import annotations
 
 import logging

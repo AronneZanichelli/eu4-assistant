@@ -1,3 +1,9 @@
+"""Mod builder — generates and installs the monthly autosave mod for EU4.
+
+The mod consists of a ``.mod`` descriptor and an ``events/monthly_save.txt``
+event file.  Installation is idempotent.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

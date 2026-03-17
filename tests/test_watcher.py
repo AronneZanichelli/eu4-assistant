@@ -1,3 +1,5 @@
+"""Tests for FileWatcher event emission and pause detection."""
+
 import time
 from pathlib import Path
 

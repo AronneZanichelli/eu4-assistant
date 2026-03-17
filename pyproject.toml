@@ -4,23 +4,44 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eu4-assistant-bot"
-version = "0.2.0"
-description = "EU4 Assistant + Bot — companion app for Europa Universalis IV"
+version = "0.5.0"
+description = "EU4 Assistant + Bot — desktop companion for Europa Universalis IV with real-time analysis, contextual advice and optional action automation."
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
+authors = [
+    {name = "Aronne Zanichelli"},
+]
+keywords = ["eu4", "europa-universalis", "game-assistant", "companion-app", "clausewitz"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment :: Turn Based Strategy",
+]
 dependencies = [
     "watchdog>=4.0,<7.0",
-    "PyQt6>=6.5,<7.0",
-    "pynput>=1.7,<2.0",
 ]
 
 [project.optional-dependencies]
+ui = [
+    "PyQt6>=6.5,<7.0",
+    "pynput>=1.7,<2.0",
+]
 dev = [
     "pytest>=7.0",
+    "PyQt6>=6.5,<7.0",
+    "pynput>=1.7,<2.0",
 ]
 bot = [
     "pyautogui>=0.9,<1.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/AronneZanichelli/eu4-assistant"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["eu4_assistant_bot*"]

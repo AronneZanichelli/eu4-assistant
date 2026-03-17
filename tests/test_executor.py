@@ -1,3 +1,5 @@
+"""Tests for the simulated ActionExecutor."""
+
 from eu4_assistant_bot.config import BotMode
 from eu4_assistant_bot.executor import ActionExecutor
 from eu4_assistant_bot.models import ActionPlan, GameSnapshot

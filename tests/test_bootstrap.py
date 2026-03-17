@@ -1,3 +1,5 @@
+"""Integration tests for the CLI bootstrap pipeline (main.run)."""
+
 import json
 from pathlib import Path
 

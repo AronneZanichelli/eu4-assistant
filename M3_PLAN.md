@@ -1,5 +1,8 @@
 # M3 — Piano implementazione
 
+> **Stato: ✅ Completato** — Mergiato in main con PR #3 + fix CI.
+> Nota: `EU4RulesLoader` usa ancora il legacy parser (da aggiornare pre-M5).
+
 ## Obiettivo
 
 Sostituire il parser PoC con un `ClausewitzTextParser` ricorsivo completo,
@@ -231,10 +234,10 @@ tests/
 
 ## Definizione di "Done" per M3
 
-- [ ] `ClausewitzTextParser` parsifica correttamente tutti i casi della grammatica
-- [ ] `SaveUnzipper` estrae il gamestate da un `.eu4` reale
-- [ ] `EU4RulesLoader` usa il nuovo parser senza breaking change
-- [ ] Mod autosave mensile generabile da `ModBuilder.install()`
-- [ ] Suite test: tutti i test passano con `python -m pytest -q`
-- [ ] Nessuna dipendenza esterna aggiunta
-- [ ] Performance: save 30MB parsato in <5s
+- [x] `ClausewitzTextParser` parsifica correttamente tutti i casi della grammatica
+- [x] `SaveUnzipper` estrae il gamestate da un `.eu4` reale
+- [ ] `EU4RulesLoader` usa il nuovo parser senza breaking change *(ancora su legacy parser)*
+- [x] Mod autosave mensile generabile da `ModBuilder.install()`
+- [x] Suite test: tutti i test passano con `python -m pytest -q`
+- [x] Nessuna dipendenza esterna aggiunta
+- [ ] Performance: save 30MB parsato in <5s *(non ancora profilato su save reali)*

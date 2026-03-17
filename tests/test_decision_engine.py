@@ -1,3 +1,5 @@
+"""Tests for DecisionEngine risk evaluation and recommendations."""
+
 from eu4_assistant_bot.config import DecisionThresholds
 from eu4_assistant_bot.decision_engine import DecisionEngine, RiskCode
 from eu4_assistant_bot.models import (

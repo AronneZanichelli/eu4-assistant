@@ -1,3 +1,5 @@
+"""Tests for ClausewitzTextParser and EU4RulesLoader."""
+
 from pathlib import Path
 import pytest
 from eu4_assistant_bot.parser import ClausewitzParser, ClausewitzTextParser, EU4RulesLoader

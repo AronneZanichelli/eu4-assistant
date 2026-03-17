@@ -1,4 +1,12 @@
-"""EU4 Assistant + Bot core package."""
+"""EU4 Assistant + Bot — desktop companion for Europa Universalis IV.
+
+Reads autosave files in real time, builds a typed game-state snapshot,
+evaluates risks and generates contextual recommendations.  Optional
+semi-bot and full-bot modes can execute actions via screen automation.
+"""
+
+__version__ = "0.4.0"
+
 
 from .colonial import ColonialAdvisor, ColonizationPlan, ColonyRanking
 from .config import AppConfig, BotMode, DecisionThresholds, RiskProfile

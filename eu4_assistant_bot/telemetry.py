@@ -1,3 +1,9 @@
+"""Structured logging and session event recording.
+
+:func:`setup_logging` configures a rotating file handler plus console output.
+:func:`emit_event` appends JSON-lines events to ``events.jsonl``.
+"""
+
 from __future__ import annotations
 
 import json

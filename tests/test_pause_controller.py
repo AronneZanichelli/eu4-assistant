@@ -5,11 +5,11 @@ from eu4_assistant_bot.models import DiplomacyState, GameSnapshot, RiskState
 from eu4_assistant_bot.pause_controller import PauseController, PauseEvent, PauseReason
 
 
-def _snap(rebels: float = 0.0, truces: int = 0) -> GameSnapshot:
-    """Build a minimal snapshot with risk.rebels and diplomacy.truces."""
+def _snap(rebels: float = 0.0, active_wars: int = 0) -> GameSnapshot:
+    """Build a minimal snapshot with risk.rebels and diplomacy.active_wars."""
     snap = GameSnapshot.empty("FRA")
     snap.risk = RiskState(rebels=rebels)
-    snap.diplomacy = DiplomacyState(truces=[{"tag": f"T{i}"} for i in range(truces)])
+    snap.diplomacy = DiplomacyState(active_wars=active_wars)
     return snap
 
 
@@ -54,23 +54,32 @@ class TestPauseControllerWar:
         """First snapshot has no baseline — should not trigger."""
         keys: list[str] = []
         ctrl = PauseController(send_key=keys.append)
-        result = ctrl.check(_snap(truces=2))
+        result = ctrl.check(_snap(active_wars=2))
         assert result is None
 
     def test_pause_on_new_war(self) -> None:
         keys: list[str] = []
         ctrl = PauseController(send_key=keys.append)
-        ctrl.check(_snap(truces=1))  # baseline
-        result = ctrl.check(_snap(truces=2))  # new truce → war
+        ctrl.check(_snap(active_wars=0))  # baseline: peace
+        result = ctrl.check(_snap(active_wars=1))  # new war declared
         assert result is not None
         assert result.reason == PauseReason.WAR_DECLARED
         assert keys == ["F1"]
 
-    def test_no_pause_same_truces(self) -> None:
+    def test_no_pause_same_wars(self) -> None:
         keys: list[str] = []
         ctrl = PauseController(send_key=keys.append)
-        ctrl.check(_snap(truces=2))
-        result = ctrl.check(_snap(truces=2))
+        ctrl.check(_snap(active_wars=1))
+        result = ctrl.check(_snap(active_wars=1))
+        assert result is None
+        assert keys == []
+
+    def test_no_pause_when_war_ends(self) -> None:
+        """War count decreasing (war ended) should NOT trigger pause."""
+        keys: list[str] = []
+        ctrl = PauseController(send_key=keys.append)
+        ctrl.check(_snap(active_wars=2))
+        result = ctrl.check(_snap(active_wars=1))  # war ended
         assert result is None
         assert keys == []
 

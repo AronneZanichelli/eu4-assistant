@@ -1,3 +1,10 @@
+"""Risk evaluation and contextual recommendation engine.
+
+Analyses a :class:`~eu4_assistant_bot.models.GameSnapshot` to produce
+:class:`RiskAlerts` and a prioritised list of :class:`Recommendation` items.
+Thresholds are configurable via :class:`~eu4_assistant_bot.config.DecisionThresholds`.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
