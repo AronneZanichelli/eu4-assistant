@@ -4,16 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eu4-assistant-bot"
-version = "0.2.0"
+version = "0.3.0"
 description = "EU4 Assistant + Bot — companion app for Europa Universalis IV"
 requires-python = ">=3.11"
 dependencies = [
     "watchdog>=4.0,<7.0",
+    "PyQt6>=6.4",
+    "keyboard>=0.13",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "pytest-qt>=4.2",
 ]
 
 [tool.setuptools.packages.find]

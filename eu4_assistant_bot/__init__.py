@@ -6,17 +6,11 @@ from .executor import ActionExecutor, ExecutionResult
 from .extractor import StateExtractor
 from .mod import ModBuilder, ModInstallResult, ModInstallStatus
 from .models import (
-    ActionPlan,
-    ColonialState,
-    DiplomacyState,
-    EconomyState,
-    GameSnapshot,
-    IdeasState,
-    MilitaryState,
-    RiskState,
-    TechState,
+    ActionPlan, ColonialState, DiplomacyState, EconomyState,
+    GameSnapshot, IdeasState, MilitaryState, RiskState, TechState,
 )
 from .parser import ClausewitzTextParser
+from .pause_controller import PauseController, PauseEvent, PauseTrigger
 from .save_adapter import SaveAdapterError, SaveSnapshotAdapter
 from .save_unzipper import SaveFormatError, SaveUnzipper
 from .state_reader import SnapshotReadError, SnapshotReader
@@ -36,4 +30,5 @@ __all__ = [
     "ClausewitzTextParser",
     "SaveUnzipper", "SaveFormatError",
     "FileWatcher", "SaveEvent", "SaveEventType",
+    "PauseController", "PauseEvent", "PauseTrigger",
 ]
