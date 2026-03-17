@@ -19,6 +19,7 @@ from .models import (
     MilitaryState,
     RiskState,
     TechState,
+    WarState,
 )
 
 
@@ -64,6 +65,9 @@ class SnapshotReader:
             diplomacy=DiplomacyState(**_safe_dict("diplomacy")),
             colonial=ColonialState(**_safe_dict("colonial")),
             risk=RiskState(**_safe_dict("risk")),
+            war=WarState(**_safe_dict("war")),
             tech=TechState(**_safe_dict("tech")),
             ideas=IdeasState(**_safe_dict("ideas")),
+            # trade_nodes and provinces contain nested typed objects not reconstructible
+            # via simple dict unpacking — they default to [] (GameSnapshot defaults)
         )

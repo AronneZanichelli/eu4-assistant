@@ -168,7 +168,7 @@ class StateExtractor:
         rebels_raw = c.get("rebel_faction", [])
         if isinstance(rebels_raw, dict):
             rebels_raw = [rebels_raw]
-        rebel_risk = min(len(rebels_raw) * _REBEL_RISK_PER_FACTION, 1.0) if isinstance(rebels_raw, list) else 0.0
+        rebel_risk = min(len(rebels_raw) * _REBEL_RISK_PER_FACTION, 1.0)
         overext = self._float(c.get("overextension_percentage"), default=0.0)
         ae_max = self._float(c.get("max_aggressive_expansion"), default=0.0)
         return RiskState(
