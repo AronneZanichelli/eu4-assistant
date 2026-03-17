@@ -48,10 +48,16 @@ class ActionExecutor:
     def execute(self, plan: ActionPlan, snapshot: GameSnapshot, mode: BotMode) -> ExecutionResult:
         """Real execution via supervisor + registered handlers."""
         result = self._supervisor.execute_plan(plan, snapshot, mode)
+        if result.success:
+            status = "executed"
+        elif result.pre_check.message == "awaiting_confirmation":
+            status = "awaiting_confirmation"
+        else:
+            status = "failed"
         return ExecutionResult(
             plan_id=plan.id,
             action_type=plan.action_type,
-            status="executed" if result.success else "failed",
+            status=status,
             reason=result.message,
             confidence=plan.confidence,
         )

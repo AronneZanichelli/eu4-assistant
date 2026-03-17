@@ -60,7 +60,10 @@ class ExecutionSupervisor:
     def _set_state(self, new_state: ExecutionState) -> None:
         self._state = new_state
         if self._on_state_changed:
-            self._on_state_changed(new_state)
+            try:
+                self._on_state_changed(new_state)
+            except Exception:
+                logger.exception("Callback on_state_changed failed")
 
     def execute_plan(
         self, plan: ActionPlan, snapshot: GameSnapshot, mode: BotMode
@@ -79,27 +82,52 @@ class ExecutionSupervisor:
         if handler is None:
             return self._make_failure(plan, f"Nessun handler per '{plan.action_type}'.")
 
-        # 4. Confirmation check (semi-bot: all confirmed actions need UI confirm)
+        # 4. Safety limits check
+        safety_msg = self._check_safety(plan, snapshot)
+        if safety_msg:
+            return self._make_failure(plan, safety_msg)
+
+        # 5. Confirmation check (semi-bot: actions requiring confirmation are blocked)
         if handler.requires_confirmation or plan.requires_confirmation:
             if mode != BotMode.FULL_BOT:
                 self._set_state(ExecutionState.WAITING_CONFIRM)
-                # In real integration, the UI callback handles this.
-                # For now, we proceed (the UI layer gates this before calling us).
-                self._set_state(ExecutionState.IDLE)
+                return HandlerResult(
+                    success=False,
+                    action_type=plan.action_type,
+                    message="Richiede conferma utente.",
+                    pre_check=CheckResult(passed=True, message="awaiting_confirmation"),
+                    is_critical=handler.is_critical,
+                )
 
-        # 5. Notify action started
+        # 6. Notify action started
         if self._on_action_started:
-            self._on_action_started(plan)
+            try:
+                self._on_action_started(plan)
+            except Exception:
+                logger.exception("Callback on_action_started failed")
         self._set_state(ExecutionState.EXECUTING)
 
-        # 6. Execute with retry
+        # 7. Execute with retry + timeout
         last_result: HandlerResult | None = None
         for attempt in range(self._config.max_retries + 1):
             if self._emergency_stop.is_set():
                 self._set_state(ExecutionState.EMERGENCY_STOP)
                 return self._make_failure(plan, "Interrotto da emergency stop.")
 
-            last_result = handler.run(plan, snapshot)
+            timer = threading.Timer(
+                self._config.action_timeout_seconds,
+                self._on_timeout,
+            )
+            timer.start()
+            try:
+                last_result = handler.run(plan, snapshot)
+            finally:
+                timer.cancel()
+
+            if self._emergency_stop.is_set():
+                self._set_state(ExecutionState.EMERGENCY_STOP)
+                return self._make_failure(plan, "Azione interrotta per timeout.")
+
             if last_result.success:
                 break
 
@@ -115,11 +143,32 @@ class ExecutionSupervisor:
         assert last_result is not None
         self._set_state(ExecutionState.IDLE)
 
-        # 7. Notify completion
+        # 8. Notify completion
         if self._on_action_completed:
-            self._on_action_completed(last_result)
+            try:
+                self._on_action_completed(last_result)
+            except Exception:
+                logger.exception("Callback on_action_completed failed")
 
         return last_result
+
+    def _check_safety(self, plan: ActionPlan, snapshot: GameSnapshot) -> str | None:
+        """Return error message if safety limits would be violated, else None."""
+        if plan.action_type == "military_recruit":
+            if self._safety.max_recruits_per_cycle <= 0:
+                return "Reclutamento disabilitato dai limiti di sicurezza."
+        if self._safety.auto_pause_on_high_risk and hasattr(snapshot, "risk"):
+            risk = snapshot.risk
+            if risk.coalition > 0.85 or risk.rebels > 0.85:
+                return "Rischio troppo alto — esecuzione bloccata (auto_pause_on_high_risk)."
+        return None
+
+    def _on_timeout(self) -> None:
+        """Called by Timer thread when action exceeds timeout."""
+        logger.warning(
+            "Action timed out after %ss", self._config.action_timeout_seconds
+        )
+        self._emergency_stop.set()
 
     def emergency_stop(self) -> None:
         """Immediately halt all execution. Thread-safe."""

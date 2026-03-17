@@ -19,11 +19,14 @@ from eu4_assistant_bot.models import (
     GameSnapshot,
     MilitaryState,
     RiskState,
+    ActionPlan,
 )
 from eu4_assistant_bot.ui.dashboard_panel import DashboardPanel
 from eu4_assistant_bot.ui.advisor_panel import AdvisorPanel
 from eu4_assistant_bot.ui.log_panel import LogLevel, LogPanel
 from eu4_assistant_bot.ui.main_window import MainWindow
+from eu4_assistant_bot.ui.confirmation_dialog import ConfirmationDialog
+from eu4_assistant_bot.ui.execution_banner import ExecutionBanner
 
 
 @pytest.fixture(scope="session")
@@ -143,3 +146,84 @@ class TestMainWindow:
         # Direct slot call (simulating signal delivery)
         win._on_snapshot(snap)
         assert win.dashboard._lbl_country.text() == "FRA"
+
+
+def _plan(**overrides) -> ActionPlan:
+    defaults = dict(
+        id="t:1",
+        action_type="military_recruit",
+        priority=0.8,
+        confidence=0.7,
+        requires_confirmation=False,
+    )
+    defaults.update(overrides)
+    return ActionPlan(**defaults)
+
+
+class TestConfirmationDialog:
+    def test_dialog_not_confirmed_by_default(self, qapp: QApplication) -> None:
+        dialog = ConfirmationDialog(_plan())
+        assert not dialog.was_confirmed()
+
+    def test_dialog_title(self, qapp: QApplication) -> None:
+        dialog = ConfirmationDialog(_plan())
+        assert dialog.windowTitle() == "Conferma azione"
+
+    def test_confirm_sets_flag(self, qapp: QApplication) -> None:
+        dialog = ConfirmationDialog(_plan())
+        dialog._on_confirm()
+        assert dialog.was_confirmed()
+
+    def test_critical_action_shows_warning(self, qapp: QApplication) -> None:
+        dialog = ConfirmationDialog(_plan(requires_confirmation=True))
+        # Find the warning label — search all QLabel children
+        from PyQt6.QtWidgets import QLabel
+        labels = dialog.findChildren(QLabel)
+        texts = [lbl.text() for lbl in labels]
+        assert any("conferma" in t.lower() for t in texts)
+
+
+class TestExecutionBanner:
+    def test_initially_hidden(self, qapp: QApplication) -> None:
+        banner = ExecutionBanner()
+        assert not banner.isVisible()
+
+    def test_show_executing_makes_visible(self, qapp: QApplication) -> None:
+        banner = ExecutionBanner()
+        banner.show_executing("Reclutamento truppe")
+        assert banner.isVisible()
+        assert "Reclutamento" in banner._lbl_status.text()
+
+    def test_show_eu4_paused(self, qapp: QApplication) -> None:
+        banner = ExecutionBanner()
+        banner.show_eu4_paused()
+        assert banner.isVisible()
+        assert "pausa" in banner._lbl_status.text().lower()
+
+    def test_hide_banner(self, qapp: QApplication) -> None:
+        banner = ExecutionBanner()
+        banner.show_executing("test")
+        banner.hide_banner()
+        assert not banner.isVisible()
+
+    def test_stop_signal(self, qapp: QApplication) -> None:
+        banner = ExecutionBanner()
+        received: list[bool] = []
+        banner.stop_requested.connect(lambda: received.append(True))
+        banner._btn_stop.click()
+        assert len(received) == 1
+
+    def test_undo_signal(self, qapp: QApplication) -> None:
+        banner = ExecutionBanner()
+        banner.show_undo_available("military_peace_gate")
+        received: list[bool] = []
+        banner.undo_requested.connect(lambda: received.append(True))
+        banner._btn_undo.click()
+        assert len(received) == 1
+
+    def test_undo_button_visible_only_after_critical(self, qapp: QApplication) -> None:
+        banner = ExecutionBanner()
+        banner.show_executing("test")
+        assert not banner._btn_undo.isVisible()
+        banner.show_undo_available("test")
+        assert banner._btn_undo.isVisible()

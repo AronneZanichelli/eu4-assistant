@@ -303,6 +303,8 @@ Durante una guerra attiva il military bot gestisce:
 - **`ui/execution_banner.py`**: `ExecutionBanner` in cima all'AdvisorPanel — "Sto eseguendo: [azione]", "EU4 in pausa", undo per azioni critiche, STOP button.
 - Pre/post check: **snapshot-based** (confronto stato game), no template matching.
 
+**M9 hardening aggiunto a supervisor:** timeout enforcement con `threading.Timer` (`action_timeout_seconds`), safety limits check (`max_recruits_per_cycle`, `auto_pause_on_high_risk`), confirmation gating formale (ritorna `awaiting_confirmation` invece di pass-through), callback exception isolation (on_state_changed / on_action_started / on_action_completed non propagano eccezioni).
+
 ### 8.7 `eu4_assistant_bot.pause_controller` *(M5)* ✅
 - Monitora snapshot per condizioni di pausa automatica.
 - Invia keypress `F1` a EU4 quando rileva:
@@ -515,6 +517,6 @@ Non altera regole di gioco. Compatibile con achievement.
 | M5 — UI PyQt6 + PauseController + hotkey | ✅ Completato |
 | M6 — Military logic | ✅ Completato |
 | M7 — Colonial + Economy logic | ✅ Completato |
-| M8 — ActionExecutor reale + full-bot UI | ⏳ Prossimo |
-| M9 — QA / stabilità / crash hardening | 🔜 Pianificato |
+| M8 — ActionExecutor reale + full-bot UI | ✅ Completato |
+| M9 — QA / stabilità / crash hardening | ✅ Completato |
 | M10 — Packaging + changelog | 🔜 Pianificato |
