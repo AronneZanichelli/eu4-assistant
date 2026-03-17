@@ -31,11 +31,22 @@ ui = [
     "PyQt6>=6.5,<7.0",
     "pynput>=1.7,<2.0",
 ]
+bot = [
+    "PyQt6>=6.5,<7.0",
+    "pynput>=1.7,<2.0",
+    "pyautogui>=0.9,<1.0",
+]
 dev = [
     "pytest>=7.0",
     "PyQt6>=6.5,<7.0",
     "pynput>=1.7,<2.0",
 ]
+pkg = [
+    "pyinstaller>=5.0,<7.0",
+]
+
+[project.scripts]
+eu4-assistant = "eu4_assistant_bot.main:main"
 
 [project.urls]
 Repository = "https://github.com/AronneZanichelli/eu4-assistant"

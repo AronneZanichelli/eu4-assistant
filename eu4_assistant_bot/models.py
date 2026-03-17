@@ -82,6 +82,13 @@ class RiskState:
 
 
 @dataclass(slots=True)
+class WarState:
+    """Current war status of the player country."""
+    at_war: bool = False
+    num_wars: int = 0
+
+
+@dataclass(slots=True)
 class TechState:
     """Administrative, diplomatic and military technology levels."""
     adm_tech: int = 0
@@ -116,6 +123,7 @@ class GameSnapshot:
     diplomacy: DiplomacyState = field(default_factory=DiplomacyState)
     colonial: ColonialState = field(default_factory=ColonialState)
     risk: RiskState = field(default_factory=RiskState)
+    war: WarState = field(default_factory=WarState)
     tech: TechState = field(default_factory=TechState)
     ideas: IdeasState = field(default_factory=IdeasState)
     trade_nodes: list[TradeNodeState] = field(default_factory=list)

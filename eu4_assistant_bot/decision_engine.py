@@ -7,20 +7,29 @@ Thresholds are configurable via :class:`~eu4_assistant_bot.config.DecisionThresh
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 from .config import DecisionThresholds
 from .models import ActionPlan, GameSnapshot
 
 # Recommendation priority constants — tune these to adjust advisor behaviour
-_PRIO_COALITION = 0.95
-_PRIO_DEBT = 0.92
-_PRIO_MANPOWER = 0.90
-_PRIO_REBELS = 0.86
-_PRIO_EXPANSION = 0.78
-_PRIO_TRADE = 0.72
-_PRIO_TECH = 0.68
+_PRIO_COALITION          = 0.95
+_PRIO_DEBT               = 0.92
+_PRIO_MANPOWER           = 0.90
+_PRIO_REBELS             = 0.86
+_PRIO_WARTIME_REINFORCE  = 0.93   # M6: wartime + critical manpower
+_PRIO_ARMY_HEALTH        = 0.82   # M6: peacetime army below force limit
+_PRIO_EXPANSION          = 0.78
+_PRIO_ARMY_FRAGMENTED    = 0.70   # M6: many small armies
+_PRIO_TRADE              = 0.72
+_PRIO_TECH               = 0.68
+_PRIO_COLONIST           = 0.75   # M7: idle colonist with no active colony
+_PRIO_MERCHANT           = 0.71   # M7: undeployed merchant on high-value node
+
+# M7 economy/colonial thresholds (module-level; not risk-profile-dependent)
+_MERCHANT_NODE_MIN_VALUE: float = 3.0   # minimum node value (ducats) to flag missing merchant
+_TECH_POINT_OVERFLOW: int = 150         # monarch points above which tech spending is advised
 
 
 @dataclass(slots=True)
@@ -33,19 +42,30 @@ class Recommendation:
 
 @dataclass(slots=True)
 class RiskAlerts:
-    coalition_risk: bool
-    debt_risk: bool
-    manpower_risk: bool
-    rebels_risk: bool
-    reasons: list["RiskReason"]
+    coalition_risk: bool = False
+    debt_risk: bool = False
+    manpower_risk: bool = False
+    rebels_risk: bool = False
+    army_risk: bool = False
+    colonial_risk: bool = False    # M7: idle colonists / no active colonies
+    economy_adv_risk: bool = False  # M7: merchants undeployed / tech overflow
+    reasons: list["RiskReason"] = field(default_factory=list)
 
 
 class RiskCode(str, Enum):
-    COALITION_HIGH = "coalition.high"
-    DEBT_OVER_RATIO = "debt.over_ratio"
-    DEBT_NEGATIVE_BALANCE = "debt.negative_balance"
-    MANPOWER_LOW = "manpower.low"
-    REBELS_HIGH = "rebels.high"
+    COALITION_HIGH         = "coalition.high"
+    DEBT_OVER_RATIO        = "debt.over_ratio"
+    DEBT_NEGATIVE_BALANCE  = "debt.negative_balance"
+    MANPOWER_LOW           = "manpower.low"
+    REBELS_HIGH            = "rebels.high"
+    # M6 military
+    ARMY_BELOW_FORCE_LIMIT = "army.below_force_limit"
+    ARMY_FRAGMENTED        = "army.fragmented"
+    WARTIME_MANPOWER_LOW   = "wartime.manpower_low"
+    # M7 colonial + economy
+    COLONIST_IDLE          = "colonial.colonist_idle"
+    MERCHANT_UNDEPLOYED    = "economy.merchant_undeployed"
+    TECH_AFFORDABLE        = "economy.tech_affordable"
 
 
 @dataclass(slots=True)
@@ -138,13 +158,133 @@ class DecisionEngine:
                 )
             )
 
+        military_reasons = self.evaluate_military(snapshot)
+        reasons.extend(military_reasons)
+        army_risk = len(military_reasons) > 0
+
+        colonial_reasons = self.evaluate_colonial(snapshot)
+        reasons.extend(colonial_reasons)
+        colonial_risk = len(colonial_reasons) > 0
+
+        economy_adv_reasons = self.evaluate_economy_adv(snapshot)
+        reasons.extend(economy_adv_reasons)
+        economy_adv_risk = len(economy_adv_reasons) > 0
+
         return RiskAlerts(
             coalition_risk=coalition_risk,
             debt_risk=debt_risk,
             manpower_risk=manpower_risk,
             rebels_risk=rebels_risk,
+            army_risk=army_risk,
+            colonial_risk=colonial_risk,
+            economy_adv_risk=economy_adv_risk,
             reasons=reasons,
         )
+
+    def evaluate_military(self, snapshot: GameSnapshot) -> list[RiskReason]:
+        """M6: Evaluate military situation and return military-specific risk reasons."""
+        reasons: list[RiskReason] = []
+        at_war = snapshot.diplomacy.active_wars > 0
+        total_strength = sum(a.strength for a in snapshot.military.armies)
+        force_limit_k = snapshot.military.force_limit * 1000
+
+        # Peacetime: armies well below force limit → recruit more
+        if not at_war and force_limit_k > 0:
+            ratio = total_strength / force_limit_k
+            if ratio < self.thresholds.army_strength_threshold:
+                reasons.append(
+                    RiskReason(
+                        code=RiskCode.ARMY_BELOW_FORCE_LIMIT,
+                        severity="medium",
+                        message=f"Truppe al {ratio:.0%} del force limit — valuta reclutamento.",
+                        current_value=ratio,
+                        threshold_value=self.thresholds.army_strength_threshold,
+                    )
+                )
+
+        # Army fragmentation: many small stacks are vulnerable to stack wipes
+        small_armies = [a for a in snapshot.military.armies if a.strength < 5000]
+        if len(small_armies) > 3:
+            reasons.append(
+                RiskReason(
+                    code=RiskCode.ARMY_FRAGMENTED,
+                    severity="low",
+                    message=f"{len(small_armies)} armate sotto 5k — rischio stack wipe in battaglia.",
+                    current_value=float(len(small_armies)),
+                    threshold_value=3.0,
+                )
+            )
+
+        # Wartime: low manpower during active war is critical
+        if at_war and snapshot.military.manpower < self.thresholds.wartime_manpower_min:
+            reasons.append(
+                RiskReason(
+                    code=RiskCode.WARTIME_MANPOWER_LOW,
+                    severity="high",
+                    message="Manpower critico in guerra — evita battaglie offensive, usa mercenari.",
+                    current_value=float(snapshot.military.manpower),
+                    threshold_value=float(self.thresholds.wartime_manpower_min),
+                )
+            )
+
+        return reasons
+
+    def evaluate_colonial(self, snapshot: GameSnapshot) -> list[RiskReason]:
+        """M7: Evaluate colonial situation — idle colonists with no active colonies."""
+        reasons: list[RiskReason] = []
+        if snapshot.colonial.colonists_free > 0 and not snapshot.colonial.active_colonies:
+            reasons.append(
+                RiskReason(
+                    code=RiskCode.COLONIST_IDLE,
+                    severity="medium",
+                    message=f"{snapshot.colonial.colonists_free} colonist(i) libero/i — nessuna colonia attiva.",
+                    current_value=float(snapshot.colonial.colonists_free),
+                    threshold_value=0.0,
+                )
+            )
+        return reasons
+
+    def evaluate_economy_adv(self, snapshot: GameSnapshot) -> list[RiskReason]:
+        """M7: Evaluate advanced economy — undeployed merchants and monarch point overflow."""
+        reasons: list[RiskReason] = []
+
+        # Find high-value nodes where we have trade power but no merchant assigned
+        undeployed_nodes = [
+            n for n in snapshot.trade_nodes
+            if n.our_power > 0 and n.merchants == 0 and n.total_value >= _MERCHANT_NODE_MIN_VALUE
+        ]
+        if undeployed_nodes:
+            reasons.append(
+                RiskReason(
+                    code=RiskCode.MERCHANT_UNDEPLOYED,
+                    severity="low",
+                    message=(
+                        f"{len(undeployed_nodes)} nodo/i ad alto valore senza mercante "
+                        f"(valore ≥ {_MERCHANT_NODE_MIN_VALUE:.0f} duc.) — considera il reindirizzo."
+                    ),
+                    current_value=float(len(undeployed_nodes)),
+                    threshold_value=0.0,
+                )
+            )
+
+        # Monarch point overflow: high unspent points → tech spending opportunity
+        max_pts = max(
+            snapshot.tech.adm_points,
+            snapshot.tech.dip_points,
+            snapshot.tech.mil_points,
+        )
+        if max_pts >= _TECH_POINT_OVERFLOW:
+            reasons.append(
+                RiskReason(
+                    code=RiskCode.TECH_AFFORDABLE,
+                    severity="low",
+                    message=f"Punti monarchia accumulati ({max_pts} pts) — valuta investimento in tecnologia.",
+                    current_value=float(max_pts),
+                    threshold_value=float(_TECH_POINT_OVERFLOW),
+                )
+            )
+
+        return reasons
 
     def recommend(self, snapshot: GameSnapshot) -> list[Recommendation]:
         risks = self.evaluate_risks(snapshot)
@@ -189,6 +329,76 @@ class DecisionEngine:
                     category="internal",
                 )
             )
+
+        # M6 military recommendations
+        at_war = snapshot.diplomacy.active_wars > 0
+        for reason in risks.reasons:
+            if reason.code == RiskCode.WARTIME_MANPOWER_LOW:
+                recommendations.append(
+                    Recommendation(
+                        title="Rinforza le armate in guerra",
+                        rationale="Manpower critico durante una guerra attiva: usa mercenari sui fronti secondari, evita battaglie offensive fino al recupero.",
+                        priority=_PRIO_WARTIME_REINFORCE,
+                        category="military",
+                    )
+                )
+                break
+            if reason.code == RiskCode.ARMY_BELOW_FORCE_LIMIT and not at_war:
+                recommendations.append(
+                    Recommendation(
+                        title="Recluta fino al force limit",
+                        rationale="Le truppe sono sotto il 50% del force limit: recluta fanteria per consolidare la forza militare.",
+                        priority=_PRIO_ARMY_HEALTH,
+                        category="military",
+                    )
+                )
+                break
+            if reason.code == RiskCode.ARMY_FRAGMENTED:
+                recommendations.append(
+                    Recommendation(
+                        title="Consolida le armate frammentate",
+                        rationale="Molte armate piccole sono vulnerabili a stack wipe: unisci le unità in stack da almeno 10k.",
+                        priority=_PRIO_ARMY_FRAGMENTED,
+                        category="military",
+                    )
+                )
+                break
+
+        # M7 colonial recommendations
+        if risks.colonial_risk:
+            recommendations.append(
+                Recommendation(
+                    title="Invia colonisti nelle province libere",
+                    rationale="Hai colonisti liberi senza colonie attive: individua una provincia costiera o ricca di risorse e avvia la colonizzazione.",
+                    priority=_PRIO_COLONIST,
+                    category="colonial",
+                )
+            )
+
+        # M7 economy advanced recommendations
+        for reason in risks.reasons:
+            if reason.code == RiskCode.MERCHANT_UNDEPLOYED:
+                recommendations.append(
+                    Recommendation(
+                        title="Reindirizza mercanti su nodi ad alto valore",
+                        rationale="Hai nodi con potere commerciale ma senza mercante assegnato: sposta i mercanti dai nodi deboli a quelli con valore più alto.",
+                        priority=_PRIO_MERCHANT,
+                        category="trade",
+                    )
+                )
+                break
+
+        for reason in risks.reasons:
+            if reason.code == RiskCode.TECH_AFFORDABLE:
+                recommendations.append(
+                    Recommendation(
+                        title="Investi i punti monarchia in tecnologia",
+                        rationale=f"Stai accumulando troppi punti monarchia ({int(reason.current_value)} pts): investili in tech o idea groups per non sprecarli al cap.",
+                        priority=_PRIO_TECH,
+                        category="technology",
+                    )
+                )
+                break
 
         if not recommendations:
             recommendations.extend(
@@ -278,6 +488,26 @@ class DecisionEngine:
                     "target_metric": "rebels_risk",
                     "current_value": snapshot.risk.rebels,
                     "target_below": self.thresholds.rebels_risk_threshold,
+                },
+            )
+
+        if recommendation.category == "colonial":
+            return (
+                "colonial_send_colonist",
+                {
+                    "target_metric": "colonists_free",
+                    "current_value": float(snapshot.colonial.colonists_free),
+                    "target_below": 1.0,
+                },
+            )
+
+        if recommendation.category == "trade":
+            return (
+                "trade_deploy_merchant",
+                {
+                    "target_metric": "merchant_node_min_value",
+                    "current_value": float(snapshot.economy.merchants_deployed),
+                    "target_above": _MERCHANT_NODE_MIN_VALUE,
                 },
             )
 

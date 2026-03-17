@@ -10,10 +10,12 @@ import logging
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import QHBoxLayout, QMainWindow, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QMainWindow, QMessageBox, QWidget
 
+from ..config import BotMode
 from ..decision_engine import Recommendation, RiskAlerts
-from ..models import GameSnapshot
+from ..executor import ActionExecutor
+from ..models import ActionPlan, GameSnapshot
 from .advisor_panel import AdvisorPanel
 from .dashboard_panel import DashboardPanel
 from .log_panel import LogLevel, LogPanel
@@ -71,6 +73,7 @@ class MainWindow(QMainWindow):
     snapshot_received = pyqtSignal(object)        # GameSnapshot
     recommendations_received = pyqtSignal(object)  # list[Recommendation]
     alerts_received = pyqtSignal(object)           # RiskAlerts
+    plans_received = pyqtSignal(object)            # list[ActionPlan]
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -97,6 +100,13 @@ class MainWindow(QMainWindow):
         self.snapshot_received.connect(self._on_snapshot)
         self.recommendations_received.connect(self._on_recommendations)
         self.alerts_received.connect(self._on_alerts)
+        self.plans_received.connect(self._on_plans)
+        self.advisor.execute_requested.connect(self._on_execute_requested)
+
+        # ── M8: executor state ──
+        self._executor: ActionExecutor = ActionExecutor()
+        self._mode: BotMode = BotMode.ASSIST
+        self._current_plans: list[ActionPlan] = []
 
         # ── Restore window geometry ──
         self._settings = QSettings("EU4Assistant", "MainWindow")
@@ -116,8 +126,17 @@ class MainWindow(QMainWindow):
     def push_alerts(self, alerts: RiskAlerts) -> None:
         self.alerts_received.emit(alerts)
 
+    def push_plans(self, plans: list[ActionPlan]) -> None:
+        """Thread-safe: store current action plans for execution."""
+        self.plans_received.emit(plans)
+
     def push_log(self, level: LogLevel, message: str) -> None:
         self.log.add_entry(level, message)
+
+    def set_mode(self, mode: BotMode) -> None:
+        """Set execution mode and update the advisor mode label."""
+        self._mode = mode
+        self.advisor.set_mode_label(mode.value)
 
     # ── Slots ──────────────────────────────────────────────────────────────
 
@@ -132,6 +151,38 @@ class MainWindow(QMainWindow):
     @pyqtSlot(object)
     def _on_alerts(self, alerts: RiskAlerts) -> None:
         self.advisor.update_alerts(alerts)
+
+    @pyqtSlot(object)
+    def _on_plans(self, plans: list[ActionPlan]) -> None:
+        self._current_plans = plans
+
+    @pyqtSlot(str)
+    def _on_execute_requested(self, category: str) -> None:
+        """Handle Esegui button click from any recommendation card."""
+        if not self._current_plans:
+            self.push_log(LogLevel.ALERT, "Nessun piano disponibile — attendi il prossimo salvataggio.")
+            return
+
+        if self._mode == BotMode.ASSIST:
+            self.push_log(LogLevel.DECISION, "Modalità Advisor: esecuzione disabilitata.")
+            return
+
+        if self._mode == BotMode.SEMI_BOT:
+            plan = self._current_plans[0]
+            reply = QMessageBox.question(
+                self,
+                "Conferma esecuzione",
+                f"Eseguire azione '{plan.action_type}' (priorità {plan.priority:.0%})?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                self.push_log(LogLevel.DECISION, f"Esecuzione annullata dall'utente [{category}].")
+                return
+
+        results = self._executor.execute(self._current_plans, self._mode)
+        for result in results:
+            level = LogLevel.ACTION if result.status in ("executed", "executed_no_pause", "advisory") else LogLevel.ALERT
+            self.push_log(level, f"[{result.action_type}] {result.status} — {result.reason}")
 
     # ── Window management ──────────────────────────────────────────────────
 

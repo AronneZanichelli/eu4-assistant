@@ -18,6 +18,7 @@ from .models import (
     RiskState,
     TechState,
     TradeNodeState,
+    WarState,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class StateExtractor:
         diplomacy   = self._extract_diplomacy(tree, country)
         colonial    = self._extract_colonial(tree, country)
         risk        = self._extract_risk(tree, country)
+        war         = self._extract_war(tree, country)
         tech        = self._extract_tech(tree, country)
         ideas       = self._extract_ideas(tree, country)
         trade_nodes = self._extract_trade_nodes(tree, country)
@@ -66,6 +68,7 @@ class StateExtractor:
             diplomacy=diplomacy,
             colonial=colonial,
             risk=risk,
+            war=war,
             tech=tech,
             ideas=ideas,
             trade_nodes=trade_nodes,
@@ -165,13 +168,22 @@ class StateExtractor:
         rebels_raw = c.get("rebel_faction", [])
         if isinstance(rebels_raw, dict):
             rebels_raw = [rebels_raw]
-        rebel_risk = min(len(rebels_raw) * _REBEL_RISK_PER_FACTION, 1.0) if isinstance(rebels_raw, list) else 0.0
+        rebel_risk = min(len(rebels_raw) * _REBEL_RISK_PER_FACTION, 1.0)
         overext = self._float(c.get("overextension_percentage"), default=0.0)
         ae_max = self._float(c.get("max_aggressive_expansion"), default=0.0)
         return RiskState(
             coalition=min(overext / _OVEREXT_COALITION_SCALE, 1.0),
             rebels=rebel_risk,
             ae_max=ae_max,
+        )
+
+    def _extract_war(self, tree: dict[str, Any], country: str) -> WarState:
+        """Derive war status from the diplomacy block."""
+        c = self._country_block(tree, country)
+        num_wars = self._int(c.get("num_of_war_with_us"), default=0)
+        return WarState(
+            at_war=num_wars > 0,
+            num_wars=num_wars,
         )
 
     def _extract_tech(self, tree: dict[str, Any], country: str) -> TechState:

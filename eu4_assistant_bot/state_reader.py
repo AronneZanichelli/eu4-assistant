@@ -17,8 +17,11 @@ from .models import (
     GameSnapshot,
     IdeasState,
     MilitaryState,
+    ProvinceState,
     RiskState,
     TechState,
+    TradeNodeState,
+    WarState,
 )
 
 
@@ -64,6 +67,17 @@ class SnapshotReader:
             diplomacy=DiplomacyState(**_safe_dict("diplomacy")),
             colonial=ColonialState(**_safe_dict("colonial")),
             risk=RiskState(**_safe_dict("risk")),
+            war=WarState(**_safe_dict("war")),
             tech=TechState(**_safe_dict("tech")),
             ideas=IdeasState(**_safe_dict("ideas")),
+            trade_nodes=[
+                TradeNodeState(**node)
+                for node in (payload.get("trade_nodes") or [])
+                if isinstance(node, dict)
+            ],
+            provinces=[
+                ProvinceState(**prov)
+                for prov in (payload.get("provinces") or [])
+                if isinstance(prov, dict)
+            ],
         )

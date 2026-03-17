@@ -36,6 +36,9 @@ class DecisionThresholds:
     debt_to_income_threshold: float = 24.0  # percentage: 24.0 = debt is 24% of income
     manpower_ratio_threshold: float = 0.18
     rebels_risk_threshold: float = 0.60
+    # M6 military thresholds
+    army_strength_threshold: float = 0.50   # total regiments / force_limit below this → alert
+    wartime_manpower_min: int = 10_000      # manpower floor during active wars
 
     def __post_init__(self) -> None:
         if not (0.0 <= self.coalition_risk_threshold <= 1.0):
@@ -54,6 +57,14 @@ class DecisionThresholds:
             raise ValueError(
                 f"rebels_risk_threshold must be in [0, 1], got {self.rebels_risk_threshold}"
             )
+        if not (0.0 <= self.army_strength_threshold <= 1.0):
+            raise ValueError(
+                f"army_strength_threshold must be in [0, 1], got {self.army_strength_threshold}"
+            )
+        if self.wartime_manpower_min < 0:
+            raise ValueError(
+                f"wartime_manpower_min must be >= 0, got {self.wartime_manpower_min}"
+            )
 
 
 RISK_PROFILE_PRESETS: dict[RiskProfile, DecisionThresholds] = {
@@ -62,6 +73,8 @@ RISK_PROFILE_PRESETS: dict[RiskProfile, DecisionThresholds] = {
         debt_to_income_threshold=14.0,
         manpower_ratio_threshold=0.28,
         rebels_risk_threshold=0.40,
+        army_strength_threshold=0.70,
+        wartime_manpower_min=20_000,
     ),
     RiskProfile.BALANCED: DecisionThresholds(),
     RiskProfile.AGGRESSIVE: DecisionThresholds(
@@ -69,6 +82,8 @@ RISK_PROFILE_PRESETS: dict[RiskProfile, DecisionThresholds] = {
         debt_to_income_threshold=40.0,
         manpower_ratio_threshold=0.10,
         rebels_risk_threshold=0.75,
+        army_strength_threshold=0.30,
+        wartime_manpower_min=5_000,
     ),
 }
 

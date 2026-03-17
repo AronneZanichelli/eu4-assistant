@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from eu4_assistant_bot.models import ProvinceState, TradeNodeState
 from eu4_assistant_bot.state_reader import SnapshotReadError, SnapshotReader
 
 
@@ -81,3 +82,63 @@ def test_read_json_snapshot_raises_on_missing_timestamp(tmp_path: Path) -> None:
 
     with pytest.raises(SnapshotReadError, match="missing required field 'timestamp'"):
         SnapshotReader().read_json_snapshot(sample)
+
+
+# ── M9: round-trip tests for trade_nodes and provinces ────────────────────────
+
+def test_round_trip_preserves_trade_nodes(tmp_path: Path) -> None:
+    """save() + read_json_snapshot() must reconstruct trade_nodes as TradeNodeState objects."""
+    from eu4_assistant_bot.models import GameSnapshot
+
+    snap = GameSnapshot.empty("VEN")
+    snap.trade_nodes = [
+        TradeNodeState(id="venice", our_power=25.0, total_value=12.5, merchants=2),
+        TradeNodeState(id="ragusa", our_power=8.0, total_value=4.0, merchants=0),
+    ]
+    path = tmp_path / "snap.json"
+    snap.save(path)
+
+    restored = SnapshotReader().read_json_snapshot(path)
+
+    assert len(restored.trade_nodes) == 2
+    assert all(isinstance(n, TradeNodeState) for n in restored.trade_nodes)
+    venice = next(n for n in restored.trade_nodes if n.id == "venice")
+    assert venice.our_power == 25.0
+    assert venice.total_value == 12.5
+    assert venice.merchants == 2
+
+
+def test_round_trip_preserves_provinces(tmp_path: Path) -> None:
+    """save() + read_json_snapshot() must reconstruct provinces as ProvinceState objects."""
+    from eu4_assistant_bot.models import GameSnapshot
+
+    snap = GameSnapshot.empty("POR")
+    snap.provinces = [
+        ProvinceState(province_id=1, name="Lisboa", owner="POR", development=9.0, unrest=0.0, trade_good="fish"),
+        ProvinceState(province_id=2, name="Porto", owner="POR", development=6.0, unrest=1.5, trade_good="grain"),
+    ]
+    path = tmp_path / "snap_prov.json"
+    snap.save(path)
+
+    restored = SnapshotReader().read_json_snapshot(path)
+
+    assert len(restored.provinces) == 2
+    assert all(isinstance(p, ProvinceState) for p in restored.provinces)
+    lisboa = next(p for p in restored.provinces if p.name == "Lisboa")
+    assert lisboa.province_id == 1
+    assert lisboa.development == 9.0
+    assert lisboa.trade_good == "fish"
+
+
+def test_round_trip_empty_lists_are_preserved(tmp_path: Path) -> None:
+    """Empty trade_nodes and provinces survive round-trip as empty lists."""
+    from eu4_assistant_bot.models import GameSnapshot
+
+    snap = GameSnapshot.empty("ENG")
+    path = tmp_path / "snap_empty.json"
+    snap.save(path)
+
+    restored = SnapshotReader().read_json_snapshot(path)
+
+    assert restored.trade_nodes == []
+    assert restored.provinces == []

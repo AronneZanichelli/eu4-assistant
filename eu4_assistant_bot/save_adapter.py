@@ -58,6 +58,10 @@ class SaveSnapshotAdapter:
         if "timestamp" not in payload:
             raise SaveAdapterError("Invalid save extract: missing required field 'timestamp'.")
 
+        # Note: this M1/M2 legacy format only captures economy/military/risk.
+        # War status, diplomacy, tech, ideas, trade nodes and provinces are not
+        # present in key=value extracts and will default to safe empty values.
+        # Real save files should be parsed via SaveUnzipper + StateExtractor.
         return GameSnapshot(
             timestamp=payload["timestamp"],
             country=payload.get("country", "UNK"),
