@@ -2,13 +2,17 @@
 
 Bootstraps configuration, loads rules, reads a snapshot (JSON or key=value
 extract), runs the decision engine and simulated executor, then emits a
-startup event.  This will be superseded by the PyQt6 UI entry point in M5.
+startup event.
+
+M8 adds ``run_with_ui()``: starts the PyQt6 window and connects the live
+``FileWatcher`` → ``DecisionEngine`` → ``MainWindow`` pipeline.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import threading
 from pathlib import Path
 
 from .config import BotMode, RiskProfile, build_config
@@ -144,6 +148,103 @@ def run(
     return 0
 
 
+def run_with_ui(
+    mode: BotMode,
+    save_path: Path,
+    install_path: Path | None = None,
+    risk_profile: RiskProfile = RiskProfile.BALANCED,
+) -> int:
+    """M8: Start the PyQt6 window with a live watcher pipeline.
+
+    Launches the ``FileWatcher`` in a background thread; each new save triggers
+    the ``DecisionEngine`` and pushes results to the ``MainWindow`` via
+    thread-safe signals.
+
+    Requires ``eu4-assistant-bot[ui]`` or ``eu4-assistant-bot[bot]``.
+    """
+    try:
+        from PyQt6.QtWidgets import QApplication  # noqa: PLC0415
+    except ImportError as exc:
+        raise SystemExit(
+            "PyQt6 is required for run_with_ui(). "
+            "Install with: pip install eu4-assistant-bot[ui]"
+        ) from exc
+
+    from .extractor import StateExtractor  # noqa: PLC0415
+    from .parser import ClausewitzTextParser  # noqa: PLC0415
+    from .save_unzipper import SaveFormatError, SaveUnzipper  # noqa: PLC0415
+    from .ui import MainWindow  # noqa: PLC0415
+    from .ui.log_panel import LogLevel  # noqa: PLC0415
+    from .watcher import FileWatcher, SaveEventType  # noqa: PLC0415
+
+    config = build_config(mode, risk_profile=risk_profile)
+    if install_path:
+        config.eu4_install_path = install_path
+    setup_logging(config.data_dir / "logs", level=config.log_level)
+    logger = logging.getLogger("eu4-assistant")
+    logger.info("Starting EU4 Assistant (UI mode) in mode: %s", mode.value)
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.set_mode(mode)
+    window.show()
+
+    engine = DecisionEngine(thresholds=config.decision)
+    executor = ActionExecutor()
+    unzipper = SaveUnzipper()
+    extractor = StateExtractor()
+
+    def _process_save(path: Path) -> None:
+        """Called from watcher background thread on each save change."""
+        try:
+            gamestate_text = unzipper.extract_gamestate(path)
+            tree = ClausewitzTextParser().parse(gamestate_text)
+            snapshot = extractor.extract(tree)
+        except (SaveFormatError, Exception) as exc:
+            logger.warning("Failed to parse save %s: %s", path, exc)
+            window.push_log(LogLevel.ERROR, f"Errore parsing save: {exc}")
+            return
+
+        risks = engine.evaluate_risks(snapshot)
+        recommendations = engine.recommend(snapshot)
+        plans = engine.build_action_plans(snapshot)
+
+        window.push_snapshot(snapshot)
+        window.push_recommendations(recommendations)
+        window.push_alerts(risks)
+        window.push_plans(plans)
+        window.push_log(
+            LogLevel.DECISION,
+            f"[{snapshot.eu4_date or snapshot.country}] "
+            f"{len(recommendations)} raccomandazioni — "
+            f"{'⚠ rischi attivi' if any([risks.coalition_risk, risks.debt_risk, risks.manpower_risk, risks.rebels_risk]) else 'nessun rischio critico'}",
+        )
+        logger.info("Snapshot processed: %s (%s)", snapshot.country, snapshot.eu4_date)
+
+    def _watcher_loop() -> None:
+        watcher = FileWatcher(save_path)
+        watcher.start()
+        window.push_log(LogLevel.DECISION, f"Watching: {save_path}")
+        try:
+            while True:
+                event = watcher.get(timeout=2.0)
+                if event is None:
+                    continue
+                if event.type == SaveEventType.SAVE_CHANGED and event.path:
+                    _process_save(event.path)
+                elif event.type == SaveEventType.GAME_PAUSED:
+                    window.push_log(LogLevel.ALERT, "Nessun salvataggio rilevato — EU4 in pausa o chiuso?")
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Watcher loop crashed: %s", exc)
+        finally:
+            watcher.stop()
+
+    watcher_thread = threading.Thread(target=_watcher_loop, daemon=True, name="eu4-watcher")
+    watcher_thread.start()
+
+    return app.exec()
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="EU4 Assistant + Bot bootstrap CLI")
     parser.add_argument("--mode", choices=[m.value for m in BotMode], default=BotMode.ASSIST.value)
@@ -151,6 +252,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--install-path", type=Path, default=None)
     parser.add_argument("--snapshot-json", type=Path, default=None)
     parser.add_argument("--snapshot-save", type=Path, default=None)
+    parser.add_argument("--watch", type=Path, default=None, metavar="SAVE_PATH",
+                        help="Launch UI mode watching the given .eu4 save file")
     return parser.parse_args()
 
 
@@ -158,6 +261,15 @@ if __name__ == "__main__":
     args = parse_args()
     mode = BotMode(args.mode)
     profile = RiskProfile(args.risk_profile)
+    if args.watch:
+        raise SystemExit(
+            run_with_ui(
+                mode=mode,
+                save_path=args.watch,
+                install_path=args.install_path,
+                risk_profile=profile,
+            )
+        )
     raise SystemExit(
         run(
             mode=mode,
