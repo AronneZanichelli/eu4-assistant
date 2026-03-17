@@ -45,3 +45,4 @@ include = ["eu4_assistant_bot*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
