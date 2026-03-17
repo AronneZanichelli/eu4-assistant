@@ -22,6 +22,11 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+# Risk weight applied per active rebel faction (0.2 → 5 factions = max risk 1.0)
+_REBEL_RISK_PER_FACTION: float = 0.2
+# Overextension percentage at which coalition risk reaches 1.0 (100%)
+_OVEREXT_COALITION_SCALE: float = 100.0
+
 
 class StateExtractor:
     """Converts a raw Clausewitz parse tree into a typed GameSnapshot.
@@ -160,11 +165,11 @@ class StateExtractor:
         rebels_raw = c.get("rebel_faction", [])
         if isinstance(rebels_raw, dict):
             rebels_raw = [rebels_raw]
-        rebel_risk = min(len(rebels_raw) * 0.2, 1.0) if isinstance(rebels_raw, list) else 0.0
+        rebel_risk = min(len(rebels_raw) * _REBEL_RISK_PER_FACTION, 1.0) if isinstance(rebels_raw, list) else 0.0
         overext = self._float(c.get("overextension_percentage"), default=0.0)
         ae_max = self._float(c.get("max_aggressive_expansion"), default=0.0)
         return RiskState(
-            coalition=min(overext / 100.0, 1.0),
+            coalition=min(overext / _OVEREXT_COALITION_SCALE, 1.0),
             rebels=rebel_risk,
             ae_max=ae_max,
         )
@@ -191,6 +196,9 @@ class StateExtractor:
         completed: list[str] = []
         current_group = ""
         ideas_in_current = 0
+        # EU4 save files list idea groups in unlock order; the last partial group
+        # is the "active" one being filled. If multiple partial groups appear,
+        # we take the last one as current (save file ordering assumption).
         for group_name, count in ideas_block.items():
             n = self._int(count, default=0)
             if n >= 7:

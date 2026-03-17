@@ -94,7 +94,7 @@ def run(
                 "rebels_risk": risks.rebels_risk,
                 "reasons": [
                     {
-                        "code": reason.code,
+                        "code": reason.code.value,
                         "severity": reason.severity,
                         "message": reason.message,
                         "current_value": reason.current_value,

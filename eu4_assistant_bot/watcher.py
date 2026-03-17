@@ -146,6 +146,9 @@ class FileWatcher:
             self._observer.stop()
             self._observer.join(timeout=5)
             self._observer = None
+        if self._pause_thread is not None:
+            self._pause_thread.join(timeout=self._poll_interval + 1)
+            self._pause_thread = None
         logger.info("FileWatcher stopped.")
 
     def get(self, timeout: float | None = None) -> SaveEvent | None:
