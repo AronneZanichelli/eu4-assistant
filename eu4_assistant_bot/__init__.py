@@ -5,7 +5,7 @@ evaluates risks and generates contextual recommendations.  Optional
 semi-bot and full-bot modes can execute actions via screen automation.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 
 from .config import AppConfig, BotMode, DecisionThresholds, RiskProfile

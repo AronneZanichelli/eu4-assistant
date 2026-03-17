@@ -257,7 +257,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Entry point for the installed ``eu4-assistant`` CLI command."""
     args = parse_args()
     mode = BotMode(args.mode)
     profile = RiskProfile(args.risk_profile)
@@ -279,3 +280,7 @@ if __name__ == "__main__":
             risk_profile=profile,
         )
     )
+
+
+if __name__ == "__main__":
+    main()

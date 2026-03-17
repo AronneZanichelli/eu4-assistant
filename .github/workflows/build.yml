@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package and packaging dependencies
+        run: pip install -e ".[bot,pkg]"
+
+      - name: Build Windows executable
+        run: pyinstaller eu4_assistant.spec --clean
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eu4-assistant-windows
+          path: dist/eu4-assistant.exe
+          if-no-files-found: error
