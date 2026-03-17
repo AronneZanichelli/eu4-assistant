@@ -1,10 +1,4 @@
-"""Clausewitz parse-tree to typed GameSnapshot extractor.
-
-:class:`StateExtractor` walks the raw ``dict`` produced by
-:class:`~eu4_assistant_bot.parser.ClausewitzTextParser` and builds a fully
-typed :class:`~eu4_assistant_bot.models.GameSnapshot`.  Every field access
-is defensive: missing or malformed values fall back to safe defaults.
-"""
+"""Clausewitz parse-tree to typed GameSnapshot extractor."""
 
 from __future__ import annotations
 
@@ -31,34 +25,17 @@ logger = logging.getLogger(__name__)
 
 
 class StateExtractor:
-    """Converts a raw Clausewitz parse tree into a typed GameSnapshot.
-
-    All field access is defensive: missing or malformed values fall back to
-    safe defaults rather than raising exceptions.  This is intentional — EU4
-    save files vary across DLC combinations and game versions.
-    """
 
     def extract(self, tree: dict[str, Any]) -> GameSnapshot:
-        """Extract a GameSnapshot from a parsed Clausewitz tree.
-
-        Args:
-            tree: Output of ClausewitzTextParser.parse_text() or parse_file().
-
-        Returns:
-            A fully populated GameSnapshot with safe defaults for any missing fields.
-        """
         timestamp = datetime.now(tz=timezone.utc).isoformat()
         country = self._str(tree.get("player"), default="UNK")
         eu4_date = self._str(tree.get("date"), default="")
-
-        # Top-level scalars
         stability  = self._int(tree.get("stability"),  default=0)
         prestige   = self._float(tree.get("prestige"),  default=0.0)
         legitimacy = self._float(
             self._dig(tree, "countries", country, "legitimacy"),
             default=100.0,
         )
-
         economy     = self._extract_economy(tree, country)
         military    = self._extract_military(tree, country)
         diplomacy   = self._extract_diplomacy(tree, country)
@@ -68,7 +45,6 @@ class StateExtractor:
         ideas       = self._extract_ideas(tree, country)
         trade_nodes = self._extract_trade_nodes(tree, country)
         provinces   = self._extract_provinces(tree, country)
-
         return GameSnapshot(
             timestamp=timestamp,
             country=country,
@@ -87,21 +63,18 @@ class StateExtractor:
             provinces=provinces,
         )
 
-    # ── Sub-extractors ────────────────────────────────────────────────────────
-
     def _extract_economy(self, tree: dict[str, Any], country: str) -> EconomyState:
         c = self._country_block(tree, country)
-        # Count deployed and total merchants
         merchants_raw = c.get("merchant", [])
         if isinstance(merchants_raw, dict):
             merchants_raw = [merchants_raw]
         deployed = len(merchants_raw) if isinstance(merchants_raw, list) else 0
         total_merchants = self._int(c.get("num_of_merchants"), default=0)
         return EconomyState(
-            treasury=self._float(c.get("treasury"),    default=0.0),
-            income=self._float(c.get("income"),        default=0.0),
-            expenses=self._float(c.get("expenses"),    default=0.0),
-            debt=self._float(c.get("loan_size"),       default=0.0),
+            treasury=self._float(c.get("treasury"), default=0.0),
+            income=self._float(c.get("income"), default=0.0),
+            expenses=self._float(c.get("expenses"), default=0.0),
+            debt=self._float(c.get("loan_size"), default=0.0),
             merchants_deployed=deployed,
             total_merchants=total_merchants,
         )
@@ -137,7 +110,6 @@ class StateExtractor:
 
     @staticmethod
     def _parse_composition(army_block: dict[str, Any]) -> dict[str, int]:
-        """Parse regiment list into infantry/cavalry/artillery counts."""
         regiments = army_block.get("regiment", [])
         if isinstance(regiments, dict):
             regiments = [regiments]
@@ -153,7 +125,6 @@ class StateExtractor:
         return composition
 
     def _extract_wars(self, tree: dict[str, Any], country: str) -> list[WarState]:
-        """Extract active wars involving the player country."""
         wars_raw = tree.get("active_war", [])
         if isinstance(wars_raw, dict):
             wars_raw = [wars_raw]
@@ -165,7 +136,6 @@ class StateExtractor:
             attacker = self._str(raw_atk.get("tag") if isinstance(raw_atk, dict) else raw_atk, default="")
             raw_def = w.get("defender", "")
             defender = self._str(raw_def.get("tag") if isinstance(raw_def, dict) else raw_def, default="")
-            # Check participants lists for our country
             attackers = self._war_participants(w, "attackers")
             defenders = self._war_participants(w, "defenders")
             if country in attackers:
@@ -173,7 +143,7 @@ class StateExtractor:
             elif country in defenders:
                 our_side = "defender"
             else:
-                continue  # not our war
+                continue
             wars.append(WarState(
                 war_name=self._str(w.get("name"), default=""),
                 attacker=attacker,
@@ -186,7 +156,6 @@ class StateExtractor:
 
     @staticmethod
     def _war_participants(war_block: dict[str, Any], side_key: str) -> list[str]:
-        """Extract country tags from a war's attackers/defenders list."""
         side = war_block.get(side_key, [])
         if isinstance(side, dict):
             side = [side]
@@ -208,16 +177,12 @@ class StateExtractor:
         elif not isinstance(allies_raw, list):
             allies_raw = []
         alliances = [str(a) for a in allies_raw]
-
         truce_raw = c.get("truce", [])
         if isinstance(truce_raw, dict):
             truce_raw = [truce_raw]
         elif not isinstance(truce_raw, list):
             truce_raw = []
-
-        # Count active wars involving the player country
         active_wars = self._count_active_wars(tree, country)
-
         return DiplomacyState(
             truces=truce_raw,
             alliances=alliances,
@@ -231,7 +196,6 @@ class StateExtractor:
         if isinstance(colonists, list):
             colonists = len(colonists)
         total_colonists = self._int(c.get("num_of_colonists"), default=0)
-        # Active colonies from provinces section
         active: list[dict[str, Any]] = []
         provinces = tree.get("provinces", {})
         if isinstance(provinces, dict):
@@ -255,12 +219,10 @@ class StateExtractor:
 
     def _extract_risk(self, tree: dict[str, Any], country: str) -> RiskState:
         c = self._country_block(tree, country)
-        # rebel_faction risk: count factions
         rebels_raw = c.get("rebel_faction", [])
         if isinstance(rebels_raw, dict):
             rebels_raw = [rebels_raw]
         rebel_risk = min(len(rebels_raw) * 0.2, 1.0) if isinstance(rebels_raw, list) else 0.0
-        # overextension → coalition proxy
         overext = self._float(c.get("overextension_percentage"), default=0.0)
         return RiskState(
             coalition=min(overext / 100.0, 1.0),
@@ -303,8 +265,7 @@ class StateExtractor:
             free_policies=self._int(c.get("free_policies"), default=0),
         )
 
-      def _extract_trade_nodes(self, tree: dict[str, Any], country: str) -> list[TradeNodeState]:
-        """Extract trade nodes where the player has merchants deployed."""
+    def _extract_trade_nodes(self, tree: dict[str, Any], country: str) -> list[TradeNodeState]:
         trade_section = tree.get("trade", {})
         if not isinstance(trade_section, dict):
             return []
@@ -333,7 +294,6 @@ class StateExtractor:
         return result
 
     def _extract_provinces(self, tree: dict[str, Any], country: str) -> list[ProvinceState]:
-        """Extract provinces owned by the player."""
         provinces_raw = tree.get("provinces", {})
         if not isinstance(provinces_raw, dict):
             return []
@@ -348,7 +308,11 @@ class StateExtractor:
                 province_id=self._int(prov_id_str, default=0),
                 name=self._str(prov.get("name"), default=""),
                 owner=country,
-                development=self._float(prov.get("base_tax", 0)) + self._float(prov.get("base_production", 0)) + self._float(prov.get("base_manpower", 0)),
+                development=(
+                    self._float(prov.get("base_tax", 0))
+                    + self._float(prov.get("base_production", 0))
+                    + self._float(prov.get("base_manpower", 0))
+                ),
                 base_tax=self._float(prov.get("base_tax"), default=0.0),
                 unrest=self._float(prov.get("unrest"), default=0.0),
                 trade_good=self._str(prov.get("trade_goods"), default=""),
@@ -357,10 +321,7 @@ class StateExtractor:
             ))
         return result
 
-    # ── War detection ────────────────────────────────────────────────────────
-
     def _count_active_wars(self, tree: dict[str, Any], country: str) -> int:
-        """Count top-level active_war entries involving country."""
         wars_raw = tree.get("active_war", [])
         if isinstance(wars_raw, dict):
             wars_raw = [wars_raw]
@@ -385,7 +346,6 @@ class StateExtractor:
         return count
 
     def _country_block(self, tree: dict[str, Any], country: str) -> dict[str, Any]:
-        """Return the country sub-block, or empty dict if not found."""
         countries = tree.get("countries", {})
         if not isinstance(countries, dict):
             return {}
@@ -394,7 +354,6 @@ class StateExtractor:
 
     @staticmethod
     def _dig(tree: dict[str, Any], *keys: str) -> Any:
-        """Navigate nested dicts safely; returns None if any key is missing."""
         node: Any = tree
         for key in keys:
             if not isinstance(node, dict):
