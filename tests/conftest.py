@@ -1,3 +1,5 @@
+"""Shared pytest fixtures for the eu4_assistant_bot test suite."""
+
 import zipfile
 import pytest
 from pathlib import Path

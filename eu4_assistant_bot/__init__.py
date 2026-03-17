@@ -1,4 +1,12 @@
-"""EU4 Assistant + Bot core package."""
+"""EU4 Assistant + Bot — desktop companion for Europa Universalis IV.
+
+Reads autosave files in real time, builds a typed game-state snapshot,
+evaluates risks and generates contextual recommendations.  Optional
+semi-bot and full-bot modes can execute actions via screen automation.
+"""
+
+__version__ = "0.4.0"
+
 
 from .config import AppConfig, BotMode, DecisionThresholds, RiskProfile
 from .decision_engine import DecisionEngine, Recommendation, RiskAlerts, RiskCode, RiskReason
@@ -7,19 +15,23 @@ from .extractor import StateExtractor
 from .mod import ModBuilder, ModInstallResult, ModInstallStatus
 from .models import (
     ActionPlan,
+    ArmyState,
     ColonialState,
     DiplomacyState,
     EconomyState,
     GameSnapshot,
     IdeasState,
     MilitaryState,
+    ProvinceState,
     RiskState,
     TechState,
+    TradeNodeState,
 )
 from .parser import ClausewitzTextParser
 from .save_adapter import SaveAdapterError, SaveSnapshotAdapter
 from .save_unzipper import SaveFormatError, SaveUnzipper
 from .state_reader import SnapshotReadError, SnapshotReader
+from .pause_controller import PauseController, PauseEvent, PauseReason
 from .watcher import FileWatcher, SaveEvent, SaveEventType
 
 __all__ = [
@@ -28,6 +40,7 @@ __all__ = [
     "StateExtractor",
     "ModBuilder", "ModInstallResult", "ModInstallStatus",
     "ActionPlan", "GameSnapshot",
+    "ArmyState", "ProvinceState", "TradeNodeState",
     "EconomyState", "MilitaryState", "DiplomacyState",
     "ColonialState", "RiskState", "TechState", "IdeasState",
     "DecisionEngine", "Recommendation", "RiskAlerts", "RiskCode", "RiskReason",
@@ -35,5 +48,6 @@ __all__ = [
     "SaveSnapshotAdapter", "SaveAdapterError",
     "ClausewitzTextParser",
     "SaveUnzipper", "SaveFormatError",
+    "PauseController", "PauseEvent", "PauseReason",
     "FileWatcher", "SaveEvent", "SaveEventType",
 ]

@@ -1,3 +1,10 @@
+"""Simulated action executor (M1-M7).
+
+:class:`ActionExecutor` evaluates :class:`~eu4_assistant_bot.models.ActionPlan`
+items and returns simulated :class:`ExecutionResult` objects.  The real
+executor (``pyautogui`` + ``win32api``) will replace this in M8.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

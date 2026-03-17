@@ -1,3 +1,9 @@
+"""Mod builder — generates and installs the monthly autosave mod for EU4.
+
+The mod consists of a ``.mod`` descriptor and an ``events/monthly_save.txt``
+event file.  Installation is idempotent.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -41,6 +47,9 @@ country_event = {
     }
 }
 
+# TODO: EU4 may not register on_actions defined inside an events/ file.
+# If the mod does not trigger monthly saves, move this block to a separate
+# file at common/on_actions/eu4_assistant.txt and update ModBuilder.install().
 on_actions = {
     on_monthly_pulse = {
         events = { eu4_assistant.1 }

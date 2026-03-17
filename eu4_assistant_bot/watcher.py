@@ -1,3 +1,10 @@
+"""File-system watcher for EU4 autosave files.
+
+:class:`FileWatcher` uses ``watchdog`` to monitor the autosave file and emits
+:class:`SaveEvent` objects on a thread-safe queue.  It also detects when EU4
+is paused (no new save within a configurable timeout).
+"""
+
 from __future__ import annotations
 
 import logging
@@ -104,6 +111,7 @@ class FileWatcher:
         self._observer: Observer | None = None
         self._pause_thread: threading.Thread | None = None
         self._last_change  = time.monotonic()
+        self._last_change_lock = threading.Lock()
         self._running      = False
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -113,7 +121,8 @@ class FileWatcher:
         if self._running:
             return
         self._running = True
-        self._last_change = time.monotonic()
+        with self._last_change_lock:
+            self._last_change = time.monotonic()
 
         handler = _SaveFileHandler(
             self._save_path,
@@ -149,7 +158,8 @@ class FileWatcher:
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _on_save_changed(self, path: Path) -> None:
-        self._last_change = time.monotonic()
+        with self._last_change_lock:
+            self._last_change = time.monotonic()
         event = SaveEvent(type=SaveEventType.SAVE_CHANGED, path=path)
         self._queue.put(event)
         logger.debug("SaveEvent: SAVE_CHANGED — %s", path)
@@ -160,9 +170,11 @@ class FileWatcher:
             time.sleep(self._poll_interval)
             if not self._running:
                 break
-            elapsed = time.monotonic() - self._last_change
+            with self._last_change_lock:
+                elapsed = time.monotonic() - self._last_change
             if elapsed >= self._pause_timeout:
                 self._queue.put(SaveEvent(type=SaveEventType.GAME_PAUSED))
                 logger.debug("SaveEvent: GAME_PAUSED (no save for %.0fs)", elapsed)
                 # reset so we don't spam the queue
-                self._last_change = time.monotonic()
+                with self._last_change_lock:
+                    self._last_change = time.monotonic()

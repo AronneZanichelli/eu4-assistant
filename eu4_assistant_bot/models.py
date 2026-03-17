@@ -1,3 +1,10 @@
+"""Core data models for game-state representation.
+
+:class:`GameSnapshot` is the central typed container that flows through the
+entire pipeline.  All sub-states use ``slots=True`` dataclasses with safe
+defaults so that missing save-file fields never cause crashes.
+"""
+
 from __future__ import annotations
 
 import json
@@ -13,13 +20,44 @@ class EconomyState:
     income: float = 0.0
     expenses: float = 0.0
     debt: float = 0.0
+    merchants_deployed: int = 0
+
+
+@dataclass(slots=True)
+class ArmyState:
+    """Individual army unit state."""
+    id: str = ""
+    name: str = ""
+    location: int = 0
+    strength: int = 0
+    composition: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ProvinceState:
+    """Province state for colonial and military logic."""
+    province_id: int = 0
+    name: str = ""
+    owner: str = ""
+    development: float = 0.0
+    unrest: float = 0.0
+    trade_good: str = ""
+
+
+@dataclass(slots=True)
+class TradeNodeState:
+    """Trade node state for economy logic."""
+    id: str = ""
+    our_power: float = 0.0
+    total_value: float = 0.0
+    merchants: int = 0
 
 
 @dataclass(slots=True)
 class MilitaryState:
     force_limit: int = 0
     manpower: int = 0
-    armies: list[dict[str, Any]] = field(default_factory=list)
+    armies: list[ArmyState] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -27,6 +65,7 @@ class DiplomacyState:
     truces: list[dict[str, Any]] = field(default_factory=list)
     alliances: list[str] = field(default_factory=list)
     ae_map: dict[str, int] = field(default_factory=dict)
+    active_wars: int = 0  # number of wars the country is currently involved in
 
 
 @dataclass(slots=True)
@@ -39,6 +78,7 @@ class ColonialState:
 class RiskState:
     coalition: float = 0.0
     rebels: float = 0.0
+    ae_max: float = 0.0
 
 
 @dataclass(slots=True)

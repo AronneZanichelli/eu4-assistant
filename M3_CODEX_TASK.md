@@ -1,5 +1,7 @@
 # Codex Task — M3: ClausewitzTextParser, SaveUnzipper, Mod autosave
 
+> **Stato: ✅ Completato** — Implementato e mergiato in main.
+
 ## Contesto
 
 Questo repo contiene `eu4_assistant_bot`, un companion Python per Europa Universalis IV.

@@ -1,3 +1,9 @@
+"""Application configuration, bot modes and risk profiles.
+
+All paths use ``default_factory`` so that ``Path.home()`` is resolved at
+instantiation time, not at import time — this keeps the config testable.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
@@ -27,7 +33,7 @@ class SafetyLimits:
 @dataclass(slots=True)
 class DecisionThresholds:
     coalition_risk_threshold: float = 0.65
-    debt_to_income_threshold: float = 24.0
+    debt_to_income_threshold: float = 24.0  # percentage: 24.0 = debt is 24% of income
     manpower_ratio_threshold: float = 0.18
     rebels_risk_threshold: float = 0.60
 
@@ -53,11 +59,11 @@ RISK_PROFILE_PRESETS: dict[RiskProfile, DecisionThresholds] = {
 class AppConfig:
     mode: BotMode = BotMode.ASSIST
     risk_profile: RiskProfile = RiskProfile.BALANCED
-    eu4_install_path: Path = Path.home() / "Games" / "Europa Universalis IV"
-    eu4_documents_path: Path = Path.home() / "Documents" / "Paradox Interactive" / "Europa Universalis IV"
-    active_mods_path: Path = Path.home() / "Documents" / "Paradox Interactive" / "Europa Universalis IV" / "dlc_load.json"
+    eu4_install_path: Path = field(default_factory=lambda: Path.home() / "Games" / "Europa Universalis IV")
+    eu4_documents_path: Path = field(default_factory=lambda: Path.home() / "Documents" / "Paradox Interactive" / "Europa Universalis IV")
+    active_mods_path: Path = field(default_factory=lambda: Path.home() / "Documents" / "Paradox Interactive" / "Europa Universalis IV" / "dlc_load.json")
     log_level: str = "INFO"
-    data_dir: Path = Path(".eu4-assistant")
+    data_dir: Path = field(default_factory=lambda: Path.home() / ".eu4-assistant")
     safety: SafetyLimits = field(default_factory=SafetyLimits)
     decision: DecisionThresholds = field(default_factory=DecisionThresholds)
 

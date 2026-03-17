@@ -1,3 +1,10 @@
+"""Lightweight adapter for key=value save extracts.
+
+Reads a simple ``key=value`` text file (one pair per line) and builds a
+:class:`~eu4_assistant_bot.models.GameSnapshot`.  This is the M1/M2 bridge
+format; real save files are handled by :mod:`save_unzipper` + :mod:`parser`.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

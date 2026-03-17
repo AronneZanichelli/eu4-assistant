@@ -1,3 +1,10 @@
+"""Risk evaluation and contextual recommendation engine.
+
+Analyses a :class:`~eu4_assistant_bot.models.GameSnapshot` to produce
+:class:`RiskAlerts` and a prioritised list of :class:`Recommendation` items.
+Thresholds are configurable via :class:`~eu4_assistant_bot.config.DecisionThresholds`.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -58,11 +65,14 @@ class DecisionEngine:
 
     def evaluate_risks(self, snapshot: GameSnapshot) -> RiskAlerts:
         monthly_balance = snapshot.economy.income - snapshot.economy.expenses
-        debt_ratio = snapshot.economy.debt / max(snapshot.economy.income, 1)
+        # debt_ratio_pct: expressed as percentage (e.g. 24.0 = 24%)
+        # income == 0 is treated as infinite debt ratio (capped at 9999)
+        income = max(snapshot.economy.income, 0.01)
+        debt_ratio_pct = min((snapshot.economy.debt / income) * 100.0, 9999.0)
         manpower_ratio = snapshot.military.manpower / max(snapshot.military.force_limit * 1000, 1)
 
         coalition_risk = snapshot.risk.coalition >= self.thresholds.coalition_risk_threshold
-        debt_risk = debt_ratio >= self.thresholds.debt_to_income_threshold or (
+        debt_risk = debt_ratio_pct >= self.thresholds.debt_to_income_threshold or (
             snapshot.economy.debt > 0 and monthly_balance < 0
         )
         manpower_risk = manpower_ratio <= self.thresholds.manpower_ratio_threshold
@@ -80,13 +90,13 @@ class DecisionEngine:
                 )
             )
 
-        if debt_ratio >= self.thresholds.debt_to_income_threshold:
+        if debt_ratio_pct >= self.thresholds.debt_to_income_threshold:
             reasons.append(
                 RiskReason(
                     code=RiskCode.DEBT_OVER_RATIO,
                     severity="high",
                     message="Rapporto debito/reddito oltre soglia.",
-                    current_value=debt_ratio,
+                    current_value=debt_ratio_pct,
                     threshold_value=self.thresholds.debt_to_income_threshold,
                 )
             )
