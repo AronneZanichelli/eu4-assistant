@@ -39,7 +39,6 @@ dev = [
 
 [project.urls]
 Repository = "https://github.com/AronneZanichelli/eu4-assistant"
-
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["eu4_assistant_bot*"]
