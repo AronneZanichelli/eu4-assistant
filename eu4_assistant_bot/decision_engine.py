@@ -14,13 +14,16 @@ from .config import DecisionThresholds
 from .models import ActionPlan, GameSnapshot
 
 # Recommendation priority constants — tune these to adjust advisor behaviour
-_PRIO_COALITION = 0.95
-_PRIO_DEBT = 0.92
-_PRIO_MANPOWER = 0.90
-_PRIO_REBELS = 0.86
-_PRIO_EXPANSION = 0.78
-_PRIO_TRADE = 0.72
-_PRIO_TECH = 0.68
+_PRIO_COALITION          = 0.95
+_PRIO_DEBT               = 0.92
+_PRIO_MANPOWER           = 0.90
+_PRIO_REBELS             = 0.86
+_PRIO_WARTIME_REINFORCE  = 0.93   # M6: wartime + critical manpower
+_PRIO_ARMY_HEALTH        = 0.82   # M6: peacetime army below force limit
+_PRIO_EXPANSION          = 0.78
+_PRIO_ARMY_FRAGMENTED    = 0.70   # M6: many small armies
+_PRIO_TRADE              = 0.72
+_PRIO_TECH               = 0.68
 
 
 @dataclass(slots=True)
@@ -37,15 +40,20 @@ class RiskAlerts:
     debt_risk: bool
     manpower_risk: bool
     rebels_risk: bool
+    army_risk: bool
     reasons: list["RiskReason"]
 
 
 class RiskCode(str, Enum):
-    COALITION_HIGH = "coalition.high"
-    DEBT_OVER_RATIO = "debt.over_ratio"
-    DEBT_NEGATIVE_BALANCE = "debt.negative_balance"
-    MANPOWER_LOW = "manpower.low"
-    REBELS_HIGH = "rebels.high"
+    COALITION_HIGH         = "coalition.high"
+    DEBT_OVER_RATIO        = "debt.over_ratio"
+    DEBT_NEGATIVE_BALANCE  = "debt.negative_balance"
+    MANPOWER_LOW           = "manpower.low"
+    REBELS_HIGH            = "rebels.high"
+    # M6 military
+    ARMY_BELOW_FORCE_LIMIT = "army.below_force_limit"
+    ARMY_FRAGMENTED        = "army.fragmented"
+    WARTIME_MANPOWER_LOW   = "wartime.manpower_low"
 
 
 @dataclass(slots=True)
@@ -138,13 +146,66 @@ class DecisionEngine:
                 )
             )
 
+        military_reasons = self.evaluate_military(snapshot)
+        reasons.extend(military_reasons)
+        army_risk = len(military_reasons) > 0
+
         return RiskAlerts(
             coalition_risk=coalition_risk,
             debt_risk=debt_risk,
             manpower_risk=manpower_risk,
             rebels_risk=rebels_risk,
+            army_risk=army_risk,
             reasons=reasons,
         )
+
+    def evaluate_military(self, snapshot: GameSnapshot) -> list[RiskReason]:
+        """M6: Evaluate military situation and return military-specific risk reasons."""
+        reasons: list[RiskReason] = []
+        at_war = snapshot.diplomacy.active_wars > 0
+        total_strength = sum(a.strength for a in snapshot.military.armies)
+        force_limit_k = snapshot.military.force_limit * 1000
+
+        # Peacetime: armies well below force limit → recruit more
+        if not at_war and force_limit_k > 0:
+            ratio = total_strength / force_limit_k
+            if ratio < self.thresholds.army_strength_threshold:
+                reasons.append(
+                    RiskReason(
+                        code=RiskCode.ARMY_BELOW_FORCE_LIMIT,
+                        severity="medium",
+                        message=f"Truppe al {ratio:.0%} del force limit — valuta reclutamento.",
+                        current_value=ratio,
+                        threshold_value=self.thresholds.army_strength_threshold,
+                    )
+                )
+
+        # Army fragmentation: many small stacks are vulnerable to stack wipes
+        small_armies = [a for a in snapshot.military.armies if a.strength < 5000]
+        if len(small_armies) > 3:
+            reasons.append(
+                RiskReason(
+                    code=RiskCode.ARMY_FRAGMENTED,
+                    severity="low",
+                    message=f"{len(small_armies)} armate sotto 5k — rischio stack wipe in battaglia.",
+                    current_value=float(len(small_armies)),
+                    threshold_value=3.0,
+                )
+            )
+
+        # Wartime: low manpower during active war is critical
+        if at_war and snapshot.military.manpower < self.thresholds.wartime_manpower_min:
+            reasons.append(
+                RiskReason(
+                    code=RiskCode.WARTIME_MANPOWER_LOW,
+                    severity="high",
+                    message="Manpower critico in guerra — evita battaglie offensive, usa mercenari.",
+                    current_value=float(snapshot.military.manpower),
+                    threshold_value=float(self.thresholds.wartime_manpower_min),
+                )
+            )
+
+        return reasons
 
     def recommend(self, snapshot: GameSnapshot) -> list[Recommendation]:
         risks = self.evaluate_risks(snapshot)
@@ -189,6 +250,40 @@ class DecisionEngine:
                     category="internal",
                 )
             )
+
+        # M6 military recommendations
+        at_war = snapshot.diplomacy.active_wars > 0
+        for reason in risks.reasons:
+            if reason.code == RiskCode.WARTIME_MANPOWER_LOW:
+                recommendations.append(
+                    Recommendation(
+                        title="Rinforza le armate in guerra",
+                        rationale="Manpower critico durante una guerra attiva: usa mercenari sui fronti secondari, evita battaglie offensive fino al recupero.",
+                        priority=_PRIO_WARTIME_REINFORCE,
+                        category="military",
+                    )
+                )
+                break
+            if reason.code == RiskCode.ARMY_BELOW_FORCE_LIMIT and not at_war:
+                recommendations.append(
+                    Recommendation(
+                        title="Recluta fino al force limit",
+                        rationale="Le truppe sono sotto il 50% del force limit: recluta fanteria per consolidare la forza militare.",
+                        priority=_PRIO_ARMY_HEALTH,
+                        category="military",
+                    )
+                )
+                break
+            if reason.code == RiskCode.ARMY_FRAGMENTED:
+                recommendations.append(
+                    Recommendation(
+                        title="Consolida le armate frammentate",
+                        rationale="Molte armate piccole sono vulnerabili a stack wipe: unisci le unità in stack da almeno 10k.",
+                        priority=_PRIO_ARMY_FRAGMENTED,
+                        category="military",
+                    )
+                )
+                break
 
         if not recommendations:
             recommendations.extend(

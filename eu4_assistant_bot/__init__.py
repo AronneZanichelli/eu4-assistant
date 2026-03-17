@@ -24,6 +24,7 @@ from .models import (
     MilitaryState,
     ProvinceState,
     RiskState,
+    WarState,
     TechState,
     TradeNodeState,
 )
@@ -42,7 +43,7 @@ __all__ = [
     "ActionPlan", "GameSnapshot",
     "ArmyState", "ProvinceState", "TradeNodeState",
     "EconomyState", "MilitaryState", "DiplomacyState",
-    "ColonialState", "RiskState", "TechState", "IdeasState",
+    "ColonialState", "RiskState", "WarState", "TechState", "IdeasState",
     "DecisionEngine", "Recommendation", "RiskAlerts", "RiskCode", "RiskReason",
     "SnapshotReader", "SnapshotReadError",
     "SaveSnapshotAdapter", "SaveAdapterError",
