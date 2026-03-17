@@ -13,8 +13,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PyQt6.QtWidgets import QApplication
 
+from eu4_assistant_bot.config import BotMode
 from eu4_assistant_bot.decision_engine import Recommendation, RiskAlerts, RiskReason
 from eu4_assistant_bot.models import (
+    ActionPlan,
     EconomyState,
     GameSnapshot,
     MilitaryState,
@@ -143,3 +145,46 @@ class TestMainWindow:
         # Direct slot call (simulating signal delivery)
         win._on_snapshot(snap)
         assert win.dashboard._lbl_country.text() == "FRA"
+
+    def test_set_mode_updates_label(self, qapp: QApplication) -> None:
+        win = MainWindow()
+        win.set_mode(BotMode.SEMI_BOT)
+        assert win._mode == BotMode.SEMI_BOT
+        assert "semi" in win.advisor._lbl_mode.text().lower()
+
+    def test_push_plans_stores_plans(self, qapp: QApplication) -> None:
+        win = MainWindow()
+        plan = ActionPlan(
+            id="test:80",
+            action_type="economy_stabilize_budget",
+            priority=0.8,
+            confidence=0.75,
+            expected_outcome={"target_metric": "monthly_balance", "target_above": 0.0},
+            requires_confirmation=False,
+        )
+        win._on_plans([plan])
+        assert win._current_plans == [plan]
+
+    def test_execute_requested_assist_mode_noop(self, qapp: QApplication) -> None:
+        win = MainWindow()
+        plan = ActionPlan(
+            id="test:80",
+            action_type="economy_stabilize_budget",
+            priority=0.8,
+            confidence=0.75,
+            expected_outcome={"target_metric": "monthly_balance", "target_above": 0.0},
+            requires_confirmation=False,
+        )
+        win._on_plans([plan])
+        win.set_mode(BotMode.ASSIST)
+        initial_count = win.log._list.count()
+        win._on_execute_requested("economy")
+        # In ASSIST mode a decision log entry is added but no crash occurs
+        assert win.log._list.count() == initial_count + 1
+
+    def test_execute_requested_no_plans(self, qapp: QApplication) -> None:
+        win = MainWindow()
+        # No plans pushed — _current_plans is empty
+        win._on_execute_requested("economy")
+        assert win.log._list.count() == 1
+        assert "Nessun piano" in win.log._list.item(0).text()

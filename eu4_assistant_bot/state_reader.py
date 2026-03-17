@@ -17,8 +17,10 @@ from .models import (
     GameSnapshot,
     IdeasState,
     MilitaryState,
+    ProvinceState,
     RiskState,
     TechState,
+    TradeNodeState,
     WarState,
 )
 
@@ -68,6 +70,14 @@ class SnapshotReader:
             war=WarState(**_safe_dict("war")),
             tech=TechState(**_safe_dict("tech")),
             ideas=IdeasState(**_safe_dict("ideas")),
-            # trade_nodes and provinces contain nested typed objects not reconstructible
-            # via simple dict unpacking — they default to [] (GameSnapshot defaults)
+            trade_nodes=[
+                TradeNodeState(**node)
+                for node in (payload.get("trade_nodes") or [])
+                if isinstance(node, dict)
+            ],
+            provinces=[
+                ProvinceState(**prov)
+                for prov in (payload.get("provinces") or [])
+                if isinstance(prov, dict)
+            ],
         )
