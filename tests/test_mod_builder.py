@@ -9,6 +9,7 @@ def test_install_creates_mod_files(tmp_path):
     ModBuilder().install(tmp_path)
     assert (tmp_path / "eu4_assistant_autosave.mod").exists()
     assert (tmp_path / "eu4_assistant_autosave" / "events" / "monthly_save.txt").exists()
+    assert (tmp_path / "eu4_assistant_autosave" / "common" / "on_actions" / "eu4_assistant.txt").exists()
 
 
 def test_install_returns_installed_status(tmp_path):
@@ -49,4 +50,17 @@ def test_generated_event_file_contains_namespace(tmp_path):
     content = (tmp_path / "eu4_assistant_autosave" / "events" / "monthly_save.txt").read_text()
     assert "namespace = eu4_assistant" in content
     assert "save_game = yes" in content
+    assert "on_monthly_pulse" not in content  # moved to common/on_actions/
+
+
+def test_install_creates_on_actions_file(tmp_path):
+    ModBuilder().install(tmp_path)
+    on_actions = tmp_path / "eu4_assistant_autosave" / "common" / "on_actions" / "eu4_assistant.txt"
+    assert on_actions.exists()
+
+
+def test_generated_on_actions_file_contains_monthly_pulse(tmp_path):
+    ModBuilder().install(tmp_path)
+    content = (tmp_path / "eu4_assistant_autosave" / "common" / "on_actions" / "eu4_assistant.txt").read_text()
     assert "on_monthly_pulse" in content
+    assert "eu4_assistant.1" in content

@@ -1,7 +1,12 @@
 """Mod builder — generates and installs the monthly autosave mod for EU4.
 
-The mod consists of a ``.mod`` descriptor and an ``events/monthly_save.txt``
-event file.  Installation is idempotent.
+The mod consists of three files:
+- A ``.mod`` descriptor (``eu4_assistant_autosave.mod``)
+- An event file (``events/monthly_save.txt``) with the hidden save event
+- An on_actions file (``common/on_actions/eu4_assistant.txt``) that fires
+  the event every in-game month via ``on_monthly_pulse``
+
+Installation is idempotent.
 """
 
 from __future__ import annotations
@@ -46,10 +51,9 @@ country_event = {
         name = eu4_assistant.1.a
     }
 }
+"""
 
-# TODO: EU4 may not register on_actions defined inside an events/ file.
-# If the mod does not trigger monthly saves, move this block to a separate
-# file at common/on_actions/eu4_assistant.txt and update ModBuilder.install().
+_ON_ACTIONS_FILE = """\
 on_actions = {
     on_monthly_pulse = {
         events = { eu4_assistant.1 }
@@ -84,13 +88,15 @@ class ModBuilder:
         """
         mod_folder.mkdir(parents=True, exist_ok=True)
 
-        dot_mod   = mod_folder / f"{self.MOD_NAME}.mod"
-        mod_dir   = mod_folder / self.MOD_NAME
-        event_dir = mod_dir / "events"
-        event_file = event_dir / "monthly_save.txt"
+        dot_mod         = mod_folder / f"{self.MOD_NAME}.mod"
+        mod_dir         = mod_folder / self.MOD_NAME
+        event_dir       = mod_dir / "events"
+        event_file      = event_dir / "monthly_save.txt"
+        on_actions_dir  = mod_dir / "common" / "on_actions"
+        on_actions_file = on_actions_dir / "eu4_assistant.txt"
 
         # Determine current status
-        if dot_mod.exists() and event_file.exists():
+        if dot_mod.exists() and event_file.exists() and on_actions_file.exists():
             existing_version = self._read_version(dot_mod)
             if existing_version == eu4_version:
                 return ModInstallResult(
@@ -104,8 +110,10 @@ class ModBuilder:
 
         # Write files
         event_dir.mkdir(parents=True, exist_ok=True)
+        on_actions_dir.mkdir(parents=True, exist_ok=True)
         dot_mod.write_text(_MOD_FILE_TEMPLATE.format(version=eu4_version), encoding="utf-8")
         event_file.write_text(_EVENT_FILE, encoding="utf-8")
+        on_actions_file.write_text(_ON_ACTIONS_FILE, encoding="utf-8")
 
         return ModInstallResult(status=status, mod_path=mod_dir, version=eu4_version)
 
