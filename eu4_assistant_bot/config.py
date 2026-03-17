@@ -37,6 +37,24 @@ class DecisionThresholds:
     manpower_ratio_threshold: float = 0.18
     rebels_risk_threshold: float = 0.60
 
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.coalition_risk_threshold <= 1.0):
+            raise ValueError(
+                f"coalition_risk_threshold must be in [0, 1], got {self.coalition_risk_threshold}"
+            )
+        if self.debt_to_income_threshold < 0:
+            raise ValueError(
+                f"debt_to_income_threshold must be >= 0, got {self.debt_to_income_threshold}"
+            )
+        if not (0.0 <= self.manpower_ratio_threshold <= 1.0):
+            raise ValueError(
+                f"manpower_ratio_threshold must be in [0, 1], got {self.manpower_ratio_threshold}"
+            )
+        if not (0.0 <= self.rebels_risk_threshold <= 1.0):
+            raise ValueError(
+                f"rebels_risk_threshold must be in [0, 1], got {self.rebels_risk_threshold}"
+            )
+
 
 RISK_PROFILE_PRESETS: dict[RiskProfile, DecisionThresholds] = {
     RiskProfile.SAFE: DecisionThresholds(

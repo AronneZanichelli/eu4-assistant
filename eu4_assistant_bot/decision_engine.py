@@ -63,8 +63,12 @@ class DecisionEngine:
     def __init__(self, thresholds: DecisionThresholds | None = None):
         self.thresholds = thresholds or DecisionThresholds()
 
+    @staticmethod
+    def _monthly_balance(snapshot: GameSnapshot) -> float:
+        return snapshot.economy.income - snapshot.economy.expenses
+
     def evaluate_risks(self, snapshot: GameSnapshot) -> RiskAlerts:
-        monthly_balance = snapshot.economy.income - snapshot.economy.expenses
+        monthly_balance = self._monthly_balance(snapshot)
         # debt_ratio_pct: expressed as percentage (e.g. 24.0 = 24%)
         # income == 0 is treated as infinite debt ratio (capped at 9999)
         income = max(snapshot.economy.income, 0.01)
@@ -246,7 +250,7 @@ class DecisionEngine:
             )
 
         if recommendation.category == "economy":
-            monthly_balance = snapshot.economy.income - snapshot.economy.expenses
+            monthly_balance = self._monthly_balance(snapshot)
             return (
                 "economy_stabilize_budget",
                 {

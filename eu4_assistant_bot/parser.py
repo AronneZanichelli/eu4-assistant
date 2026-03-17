@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,9 @@ def _tokenize(text: str) -> list[str]:
             i += 1
             continue
         # quoted string
+        # Note: EU4 save files do not use escaped quotes (\") inside strings,
+        # so we stop at the first unescaped '"'. If future formats require
+        # escape handling, update this loop.
         if c == '"':
             i += 1
             start = i
@@ -228,7 +232,13 @@ class _LegacyClausewitzParser:
 
 
 # Deprecated alias — do not use in new code
-ClausewitzParser = _LegacyClausewitzParser
+def ClausewitzParser(*args: object, **kwargs: object) -> _LegacyClausewitzParser:  # type: ignore[misc]
+    warnings.warn(
+        "ClausewitzParser is deprecated; use ClausewitzTextParser instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _LegacyClausewitzParser(*args, **kwargs)  # type: ignore[arg-type]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
