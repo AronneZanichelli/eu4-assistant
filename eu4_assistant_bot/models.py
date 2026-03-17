@@ -118,6 +118,8 @@ class GameSnapshot:
     risk: RiskState = field(default_factory=RiskState)
     tech: TechState = field(default_factory=TechState)
     ideas: IdeasState = field(default_factory=IdeasState)
+    trade_nodes: list[TradeNodeState] = field(default_factory=list)
+    provinces: list[ProvinceState] = field(default_factory=list)
 
     @classmethod
     def empty(cls, country: str = "UNK") -> "GameSnapshot":
