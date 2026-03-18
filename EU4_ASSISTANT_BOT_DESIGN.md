@@ -420,11 +420,11 @@ Non altera regole di gioco. Compatibile con achievement.
 | **M3** ✅ | ClausewitzTextParser completo + SaveUnzipper + mod autosave | M1 |
 | **M4** ✅ | FileWatcher + StateExtractor + GameSnapshot v2 + DLC compat + path autodetect | M3 |
 | **M5** ✅ | UI PyQt6 base (Dashboard + Advisor + Log, dati live) + PauseController + hotkey | M4 |
-| **M6** | Military logic reale (stack scoring, army advisor) | M4, M5 |
-| **M7** | Colonial + Economy logic reale | M4, M5 |
-| **M8** | ActionExecutor reale (pyautogui) + semi-bot confirm + full-bot params UI | M5, M6, M7 |
-| **M9** | QA: test end-to-end, stabilità, crash hardening, DLC regression | tutti |
-| **M10** | Packaging PyInstaller + changelog system + docs | M9 |
+| **M6** ✅ | Military logic reale (stack scoring, army advisor) | M4, M5 |
+| **M7** ✅ | Colonial + Economy logic reale | M4, M5 |
+| **M8** ✅ | ActionExecutor reale (pyautogui) + semi-bot confirm + full-bot params UI | M5, M6, M7 |
+| **M9** ✅ | QA: test end-to-end, stabilità, crash hardening, DLC regression | tutti |
+| **M10** ✅ | Packaging PyInstaller + changelog system + docs | M9 |
 | **v1.0** | Release stabile | M10 |
 
 ---
@@ -489,8 +489,8 @@ Non altera regole di gioco. Compatibile con achievement.
 | M3 — Parser Clausewitz completo + mod | ✅ Completato |
 | M4 — FileWatcher + StateExtractor + DLC compat | ✅ Completato |
 | M5 — UI PyQt6 + PauseController + hotkey | ✅ Completato |
-| M6 — Military logic | ⏳ Prossimo |
-| M7 — Colonial + Economy logic | 🔜 Pianificato |
-| M8 — ActionExecutor reale + full-bot UI | 🔜 Pianificato |
-| M9 — QA / stabilità / crash hardening | 🔜 Pianificato |
-| M10 — Packaging + changelog | 🔜 Pianificato |
+| M6 — Military logic | ✅ Completato |
+| M7 — Colonial + Economy logic | ✅ Completato |
+| M8 — ActionExecutor reale + full-bot UI | ✅ Completato |
+| M9 — QA / stabilità / crash hardening | ✅ Completato |
+| M10 — Packaging + changelog | ✅ Completato |
