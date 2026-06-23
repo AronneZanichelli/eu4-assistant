@@ -1,0 +1,27 @@
+{
+  "source_path": "/mnt/c/Dev/eu4-assistant/README.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "EU4 Assistant + Bot",
+  "summary": "Project overview for a PyQt6 desktop companion for Europa Universalis IV covering install, usage, CLI options, project structure, and milestone status.",
+  "scope": [
+    "EU4 Assistant + Bot application",
+    "installation",
+    "CLI usage and options",
+    "advisor/semi-bot/full-bot modes",
+    "file watcher live UI",
+    "PyInstaller Windows build",
+    "project structure",
+    "milestone status M1-M10"
+  ],
+  "cross_refs": [
+    "CHANGELOG.md",
+    "EU4_ASSISTANT_BOT_DESIGN.md",
+    "eu4_assistant.spec",
+    "LICENSE"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

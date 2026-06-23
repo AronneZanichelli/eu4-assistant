@@ -1,0 +1,30 @@
+{
+  "source_path": "/mnt/c/Dev/eu4-assistant/EU4_ASSISTANT_BOT_DESIGN.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "EU4 Assistant + Bot — Progettazione v1.0 (definitiva)",
+  "summary": "Complete v1.0 technical design for a Windows desktop companion that watches EU4 autosaves and provides advisor/semi-bot/full-bot automation.",
+  "scope": [
+    "EU4 Assistant desktop companion",
+    "Advisor mode",
+    "Semi-bot mode",
+    "Full-bot mode",
+    "Colonial bot",
+    "Military bot",
+    "Economy advisor",
+    "autosave file watching",
+    "Clausewitz save parser",
+    "state extractor / GameSnapshot",
+    "decision engine",
+    "action executor",
+    "pause controller",
+    "PyQt6 UI (second monitor)",
+    "config and persistence layer",
+    "telemetry"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}
