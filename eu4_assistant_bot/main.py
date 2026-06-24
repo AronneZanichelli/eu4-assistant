@@ -186,8 +186,10 @@ def run_with_ui(
             "Install with: pip install eu4-assistant-bot[ui]"
         ) from exc
 
+    from .pause_controller import PauseController  # noqa: PLC0415
     from .save_unzipper import SaveFormatError  # noqa: PLC0415
     from .ui import MainWindow  # noqa: PLC0415
+    from .ui.hotkey import HotkeyManager  # noqa: PLC0415
     from .ui.log_panel import LogLevel  # noqa: PLC0415
     from .watcher import FileWatcher, SaveEventType  # noqa: PLC0415
 
@@ -205,6 +207,18 @@ def run_with_ui(
 
     engine = DecisionEngine(thresholds=config.decision)
     executor = ActionExecutor()
+    pause = PauseController(
+        on_pause=lambda ev: window.push_log(LogLevel.ALERT, f"⏸ Auto-pausa: {ev.message}"),
+    )
+
+    # Global F2 toggle. Degrade gracefully if the pynput backend is unavailable.
+    try:
+        hotkey = HotkeyManager(callback=window.toggle_requested.emit, key="f2")
+        hotkey.start()
+        app.aboutToQuit.connect(hotkey.stop)
+    except Exception as exc:  # noqa: BLE001 — global-hotkey backend is optional
+        logger.warning("Global hotkey unavailable (%s); F2 toggle disabled", exc)
+        window.push_log(LogLevel.ALERT, "Hotkey globale F2 non disponibile (backend assente).")
 
     def _process_save(path: Path) -> None:
         """Called from watcher background thread on each save change."""
@@ -222,6 +236,8 @@ def run_with_ui(
         risks = engine.evaluate_risks(snapshot)
         recommendations = engine.recommend(snapshot)
         plans = engine.build_action_plans(snapshot)
+
+        pause.check(snapshot)  # auto-pause EU4 on rebels-imminent / war-declared
 
         window.push_snapshot(snapshot)
         window.push_recommendations(recommendations)

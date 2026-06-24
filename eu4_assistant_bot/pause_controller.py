@@ -4,7 +4,7 @@ Monitors GameSnapshot for two conditions:
   - rebels_imminent: unrest (risk.rebels) above threshold
   - war_declared:    new war detected (diplomacy changes)
 
-When triggered, sends F1 keypress to EU4 to pause the game.
+When triggered, sends the pause key (Space) to EU4 to pause the game.
 """
 from __future__ import annotations
 
@@ -70,8 +70,8 @@ class PauseController:
         """
         event = self._evaluate(snapshot)
         if event is not None:
-            self._send_key("F1")
-            logger.info("PauseController: sent F1 — %s", event.message)
+            self._send_key("space")
+            logger.info("PauseController: sent pause key (space) — %s", event.message)
             if self._on_pause is not None:
                 self._on_pause(event)
             self._last_reason = event.reason

@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
     recommendations_received = pyqtSignal(object)  # list[Recommendation]
     alerts_received = pyqtSignal(object)           # RiskAlerts
     plans_received = pyqtSignal(object)            # list[ActionPlan]
+    toggle_requested = pyqtSignal()                # F2 global hotkey (thread-safe toggle)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -101,6 +102,7 @@ class MainWindow(QMainWindow):
         self.recommendations_received.connect(self._on_recommendations)
         self.alerts_received.connect(self._on_alerts)
         self.plans_received.connect(self._on_plans)
+        self.toggle_requested.connect(self.toggle_visibility)
         self.advisor.execute_requested.connect(self._on_execute_requested)
 
         # ── M8: executor state ──
@@ -186,8 +188,9 @@ class MainWindow(QMainWindow):
 
     # ── Window management ──────────────────────────────────────────────────
 
+    @pyqtSlot()
     def toggle_visibility(self) -> None:
-        """F2 hotkey handler: show/hide the window."""
+        """F2 hotkey handler: show/hide the window (thread-safe via toggle_requested)."""
         if self.isVisible():
             self.hide()
         else:
