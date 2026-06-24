@@ -28,7 +28,6 @@ _ACTION_DESCRIPTIONS: dict[str, str] = {
     "colonial_send_colonist": "Send colonist: assign free colonist to a coastal or resource-rich province",
     "trade_deploy_merchant": "Deploy merchant: redirect to a high-value trade node",
     "strategy_controlled_expansion": "Controlled expansion: plan a short war on a low-attrition target",
-    "military_recover_manpower": "Recover manpower: avoid offensive battles, use mercenaries",
 }
 
 

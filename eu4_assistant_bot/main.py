@@ -206,7 +206,6 @@ def run_with_ui(
     window.show()
 
     engine = DecisionEngine(thresholds=config.decision)
-    executor = ActionExecutor()
     pause = PauseController(
         on_pause=lambda ev: window.push_log(LogLevel.ALERT, f"⏸ Auto-pausa: {ev.message}"),
     )

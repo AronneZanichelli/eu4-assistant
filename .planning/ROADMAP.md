@@ -21,10 +21,10 @@ honestly buildable and labelled.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Restore the Live Watch Loop** - Fix the parse bug, tighten error handling, and prove the watch→snapshot→UI loop with integration tests
-- [ ] **Phase 2: Wire Auto-Pause & Global Hotkey** - Connect `PauseController` (correct pause key) and `HotkeyManager` (F2) into the running app
-- [ ] **Phase 3: Enforce the Bot-Safety Gate** - Make `execute()` honour the confirmation contract, gate FULL_BOT, add focus guard + failsafe
-- [ ] **Phase 4: Reconcile Version & CI Drift** - Align the tested interpreter, canonical version string, and mode terminology
+- [x] **Phase 1: Restore the Live Watch Loop** - Fix the parse bug, tighten error handling, and prove the watch→snapshot→UI loop with integration tests
+- [x] **Phase 2: Wire Auto-Pause & Global Hotkey** - Connect `PauseController` (correct pause key) and `HotkeyManager` (F2) into the running app
+- [x] **Phase 3: Enforce the Bot-Safety Gate** - Make `execute()` honour the confirmation contract, gate FULL_BOT, add focus guard + failsafe
+- [x] **Phase 4: Reconcile Version & CI Drift** - Align the tested interpreter, canonical version string, and mode terminology
 
 ## Phase Details
 
@@ -80,7 +80,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Restore the Live Watch Loop | 0/TBD | Not started | - |
-| 2. Wire Auto-Pause & Global Hotkey | 0/TBD | Not started | - |
-| 3. Enforce the Bot-Safety Gate | 0/TBD | Not started | - |
-| 4. Reconcile Version & CI Drift | 0/TBD | Not started | - |
+| 1. Restore the Live Watch Loop | 1/1 | Done (PR #15) | 2026-06-24 |
+| 2. Wire Auto-Pause & Global Hotkey | 1/1 | Done (PR #15) | 2026-06-24 |
+| 3. Enforce the Bot-Safety Gate | 1/1 | Done (PR #15) | 2026-06-24 |
+| 4. Reconcile Version & CI Drift | 1/1 | Done (PR #15) | 2026-06-24 |
