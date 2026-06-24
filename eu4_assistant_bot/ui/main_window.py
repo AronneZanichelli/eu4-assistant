@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
     def set_mode(self, mode: BotMode) -> None:
         """Set execution mode and update the advisor mode label."""
         self._mode = mode
-        self.advisor.set_mode_label(mode.value)
+        self.advisor.set_mode_label(mode.display_label)
 
     # ── Slots ──────────────────────────────────────────────────────────────
 
