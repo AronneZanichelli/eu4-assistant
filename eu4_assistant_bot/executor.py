@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Callable
 
 from .config import BotMode
 from .models import ActionPlan
@@ -41,8 +42,65 @@ class ExecutionResult:
     simulated_effects: dict[str, float | str] = field(default_factory=dict)
 
 
+def _default_key_sender(key: str) -> bool:
+    """Send a key to the focused window via pyautogui, with FAILSAFE enabled.
+
+    Returns True if the key was sent.  Falls back to advisory-only (False) when
+    pyautogui is not installed (``pip install eu4-assistant-bot[bot]``).
+    """
+    try:
+        import pyautogui  # type: ignore[import]  # noqa: PLC0415
+    except ImportError:
+        logger.warning(
+            "pyautogui not installed — install eu4-assistant-bot[bot] to enable "
+            "game interaction.  Running in advisory-only mode."
+        )
+        return False
+    pyautogui.FAILSAFE = True  # moving the mouse to a screen corner aborts (safety)
+    try:
+        pyautogui.press(key)
+        logger.debug("Key '%s' sent to EU4.", key)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to send key '%s' via pyautogui: %s", key, exc)
+        return False
+
+
+def _default_focus_check() -> bool:
+    """Best-effort guard that the foreground window is EU4.
+
+    Returns True when the active window title looks like EU4, or when focus
+    cannot be determined (no window backend) — there ``FAILSAFE`` remains the
+    backstop.  Returns False only when a window is identifiable and is clearly
+    not EU4, so a misfire cannot type into another application.
+    """
+    try:
+        import pyautogui  # type: ignore[import]  # noqa: PLC0415
+
+        get_title = getattr(pyautogui, "getActiveWindowTitle", None)
+        title = get_title() if callable(get_title) else None
+    except Exception:  # noqa: BLE001 — any backend failure means "cannot determine"
+        return True
+    if not title:
+        return True
+    lowered = title.lower()
+    return "europa universalis" in lowered or "eu4" in lowered
+
+
 class ActionExecutor:
-    """Executor for action plans.  Supports simulation (tests) and real execution (M8)."""
+    """Executor for action plans.  Supports simulation (tests) and real execution (M8).
+
+    ``key_sender`` and ``focus_check`` are injectable for testing (the codebase
+    favours dependency injection over mocking).
+    """
+
+    def __init__(
+        self,
+        key_sender: Callable[[str], bool] | None = None,
+        focus_check: Callable[[], bool] | None = None,
+    ) -> None:
+        self._key_sender = key_sender or _default_key_sender
+        self._focus_check = focus_check or _default_focus_check
 
     def simulate(self, plans: list[ActionPlan], mode: BotMode) -> list[ExecutionResult]:
         """Original simulation path — used for testing and ASSIST mode advisory."""
@@ -74,18 +132,28 @@ class ActionExecutor:
 
         return results
 
-    def execute(self, plans: list[ActionPlan], mode: BotMode) -> list[ExecutionResult]:
-        """M8 real execution path.
+    def execute(
+        self,
+        plans: list[ActionPlan],
+        mode: BotMode,
+        confirm: Callable[[ActionPlan], bool] | None = None,
+    ) -> list[ExecutionResult]:
+        """M8 real execution path with the bot-safety confirmation gate (M1).
 
         Behaviour by mode:
 
         * ``ASSIST``   — advisory log only; no game interaction.
-        * ``SEMI_BOT`` — pause game via Space + advisory log.
-          Confirmation dialog is handled at the UI layer before calling this.
-        * ``FULL_BOT`` — same as SEMI_BOT for M8 MVP; full menu navigation
-          is deferred to M9.
+        * ``SEMI_BOT`` — every real action requires explicit confirmation
+          (``confirm(plan)`` must return True) before any keystroke.
+        * ``FULL_BOT`` — autonomous, except actions flagged
+          ``requires_confirmation`` still need an explicit acknowledgement via
+          ``confirm``.
 
-        Falls back gracefully if ``pyautogui`` is not installed.
+        A plan that needs acknowledgement but does not get it is returned with
+        status ``"blocked"`` and never reaches the keyboard, regardless of
+        caller.  Before any keystroke the foreground window is checked and
+        ``pyautogui.FAILSAFE`` is enabled.  Falls back gracefully if
+        ``pyautogui`` is not installed.
         """
         results: list[ExecutionResult] = []
 
@@ -99,6 +167,24 @@ class ActionExecutor:
                         action_type=plan.action_type,
                         status="advisory",
                         reason="assist_mode_advisory_only",
+                        confidence=plan.confidence,
+                        simulated_effects=self._simulate_effects(plan),
+                    )
+                )
+                continue
+
+            # Safety gate (M1): SEMI_BOT confirms every action; FULL_BOT confirms
+            # only actions flagged requires_confirmation.  No confirmation => no
+            # keystroke, whatever the caller is.
+            needs_ack = plan.requires_confirmation or mode == BotMode.SEMI_BOT
+            if needs_ack and not (confirm is not None and confirm(plan)):
+                logger.warning("BLOCKED [%s]: confirmation required but not granted", plan.action_type)
+                results.append(
+                    ExecutionResult(
+                        plan_id=plan.id,
+                        action_type=plan.action_type,
+                        status="blocked",
+                        reason="confirmation_required",
                         confidence=plan.confidence,
                         simulated_effects=self._simulate_effects(plan),
                     )
@@ -122,28 +208,16 @@ class ActionExecutor:
 
         return results
 
-    @staticmethod
-    def _pause_game() -> bool:
-        """Send Space key to pause EU4.  Returns True if the key was sent.
+    def _pause_game(self) -> bool:
+        """Send Space to pause EU4 — only if EU4 is focused.  Returns True if sent.
 
-        Requires ``pyautogui`` (``pip install eu4-assistant-bot[bot]``).
-        Falls back to advisory-only if not installed.
+        The focus check prevents a misfire from typing into another application;
+        the keystroke itself (and ``FAILSAFE``) is handled by the key sender.
         """
-        try:
-            import pyautogui  # type: ignore[import]  # noqa: PLC0415
-        except ImportError:
-            logger.warning(
-                "pyautogui not installed — install eu4-assistant-bot[bot] to enable "
-                "game interaction.  Running in advisory-only mode."
-            )
+        if not self._focus_check():
+            logger.warning("EU4 window not focused — skipping keystroke (safety guard).")
             return False
-        try:
-            pyautogui.press("space")
-            logger.debug("Space key sent to EU4 (pause toggle).")
-            return True
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to send Space key via pyautogui: %s", exc)
-            return False
+        return self._key_sender("space")
 
     @staticmethod
     def _simulate_effects(plan: ActionPlan) -> dict[str, float | str]:

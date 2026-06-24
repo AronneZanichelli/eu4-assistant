@@ -166,25 +166,31 @@ class MainWindow(QMainWindow):
             return
 
         if self._mode == BotMode.ASSIST:
-            self.push_log(LogLevel.DECISION, "Modalità Advisor: esecuzione disabilitata.")
+            self.push_log(LogLevel.DECISION, f"Modalità Advisor: esecuzione disabilitata [{category}].")
             return
 
-        if self._mode == BotMode.SEMI_BOT:
-            plan = self._current_plans[0]
-            reply = QMessageBox.question(
-                self,
-                "Conferma esecuzione",
-                f"Eseguire azione '{plan.action_type}' (priorità {plan.priority:.0%})?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                self.push_log(LogLevel.DECISION, f"Esecuzione annullata dall'utente [{category}].")
-                return
-
-        results = self._executor.execute(self._current_plans, self._mode)
+        # The confirmation gate is enforced inside execute(); the dialog is the
+        # acknowledgement it calls back into (SEMI_BOT every action, FULL_BOT only
+        # actions flagged requires_confirmation).
+        results = self._executor.execute(
+            self._current_plans, self._mode, confirm=self._confirm_plan
+        )
         for result in results:
+            if result.status == "blocked":
+                self.push_log(LogLevel.DECISION, f"[{result.action_type}] esecuzione annullata (conferma negata).")
+                continue
             level = LogLevel.ACTION if result.status in ("executed", "executed_no_pause", "advisory") else LogLevel.ALERT
             self.push_log(level, f"[{result.action_type}] {result.status} — {result.reason}")
+
+    def _confirm_plan(self, plan: ActionPlan) -> bool:
+        """Confirmation gate passed to ActionExecutor.execute() before a real action."""
+        reply = QMessageBox.question(
+            self,
+            "Conferma esecuzione",
+            f"Eseguire azione '{plan.action_type}' (priorità {plan.priority:.0%})?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
 
     # ── Window management ──────────────────────────────────────────────────
 
