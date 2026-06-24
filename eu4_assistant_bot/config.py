@@ -6,6 +6,7 @@ instantiation time, not at import time — this keeps the config testable.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
@@ -100,6 +101,116 @@ RISK_PROFILE_PRESETS: dict[RiskProfile, DecisionThresholds] = {
         wartime_manpower_min=5_000,
     ),
 }
+
+
+# Recommendation categories the full-bot may be allowed to act on (design §8.5).
+# Canonical set kept here so the params UI and persistence agree on one list.
+_DEFAULT_CATEGORIES: tuple[str, ...] = (
+    "military",
+    "colonial",
+    "economy",
+    "diplomacy",
+    "trade",
+    "internal",
+    "strategy",
+)
+
+_COLONIAL_MODES: frozenset[str] = frozenset({"autonomous", "target_list"})
+
+_BOT_PARAMS_FILENAME = "bot_params.json"
+
+
+@dataclass(slots=True)
+class BotParams:
+    """User-tunable full-bot parameters, persisted to ``bot_params.json`` (design §8.10).
+
+    Holds the knobs the full-bot params panel edits: active mode, risk profile,
+    budget/recruit limits, enabled action categories, colonial sub-mode, and the
+    two configurable alert thresholds (coalition / manpower). Persisted between
+    sessions; persistence is deliberately Qt-free so it is testable headless.
+    """
+
+    mode: BotMode = BotMode.ASSIST
+    risk_profile: RiskProfile = RiskProfile.BALANCED
+    max_monthly_spend_ratio: float = 0.35
+    max_recruits_per_cycle: int = 8
+    enabled_categories: list[str] = field(default_factory=lambda: list(_DEFAULT_CATEGORIES))
+    colonial_mode: str = "autonomous"
+    coalition_risk_threshold: float = 0.65
+    manpower_ratio_threshold: float = 0.18
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.max_monthly_spend_ratio <= 1.0):
+            raise ValueError(
+                f"max_monthly_spend_ratio must be in [0, 1], got {self.max_monthly_spend_ratio}"
+            )
+        if self.max_recruits_per_cycle < 0:
+            raise ValueError(
+                f"max_recruits_per_cycle must be >= 0, got {self.max_recruits_per_cycle}"
+            )
+        if not (0.0 <= self.coalition_risk_threshold <= 1.0):
+            raise ValueError(
+                f"coalition_risk_threshold must be in [0, 1], got {self.coalition_risk_threshold}"
+            )
+        if not (0.0 <= self.manpower_ratio_threshold <= 1.0):
+            raise ValueError(
+                f"manpower_ratio_threshold must be in [0, 1], got {self.manpower_ratio_threshold}"
+            )
+        if self.colonial_mode not in _COLONIAL_MODES:
+            raise ValueError(
+                f"colonial_mode must be one of {sorted(_COLONIAL_MODES)}, got {self.colonial_mode!r}"
+            )
+
+    def to_dict(self) -> dict:
+        return {
+            "mode": self.mode.value,
+            "risk_profile": self.risk_profile.value,
+            "max_monthly_spend_ratio": self.max_monthly_spend_ratio,
+            "max_recruits_per_cycle": self.max_recruits_per_cycle,
+            "enabled_categories": list(self.enabled_categories),
+            "colonial_mode": self.colonial_mode,
+            "coalition_risk_threshold": self.coalition_risk_threshold,
+            "manpower_ratio_threshold": self.manpower_ratio_threshold,
+        }
+
+    def save(self, data_dir: Path) -> None:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        (data_dir / _BOT_PARAMS_FILENAME).write_text(
+            json.dumps(self.to_dict(), indent=2), encoding="utf-8"
+        )
+
+    @classmethod
+    def load(cls, data_dir: Path) -> "BotParams":
+        """Load params from ``data_dir``; return defaults if absent or corrupt."""
+        path = data_dir / _BOT_PARAMS_FILENAME
+        if not path.exists():
+            return cls()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, ValueError):
+            return cls()
+        defaults = cls()
+        try:
+            return cls(
+                mode=BotMode(data.get("mode", defaults.mode.value)),
+                risk_profile=RiskProfile(data.get("risk_profile", defaults.risk_profile.value)),
+                max_monthly_spend_ratio=float(
+                    data.get("max_monthly_spend_ratio", defaults.max_monthly_spend_ratio)
+                ),
+                max_recruits_per_cycle=int(
+                    data.get("max_recruits_per_cycle", defaults.max_recruits_per_cycle)
+                ),
+                enabled_categories=list(data.get("enabled_categories", defaults.enabled_categories)),
+                colonial_mode=str(data.get("colonial_mode", defaults.colonial_mode)),
+                coalition_risk_threshold=float(
+                    data.get("coalition_risk_threshold", defaults.coalition_risk_threshold)
+                ),
+                manpower_ratio_threshold=float(
+                    data.get("manpower_ratio_threshold", defaults.manpower_ratio_threshold)
+                ),
+            )
+        except (ValueError, TypeError):
+            return cls()
 
 
 @dataclass(slots=True)

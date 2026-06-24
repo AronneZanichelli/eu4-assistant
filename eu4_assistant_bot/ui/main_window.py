@@ -12,11 +12,11 @@ from pathlib import Path
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QHBoxLayout, QMainWindow, QMessageBox, QWidget
 
-from ..config import BotMode
+from ..config import BotMode, BotParams
 from ..decision_engine import Recommendation, RiskAlerts
-from ..executor import ActionExecutor
+from ..executor import ActionExecutor, ExecutionResult
 from ..models import ActionPlan, GameSnapshot
-from .advisor_panel import AdvisorPanel
+from .advisor_panel import AdvisorPanel, BotState
 from .dashboard_panel import DashboardPanel
 from .log_panel import LogLevel, LogPanel
 
@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
     plans_received = pyqtSignal(object)            # list[ActionPlan]
     toggle_requested = pyqtSignal()                # F2 global hotkey (thread-safe toggle)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, data_dir: Path | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("EU4 Assistant")
         self.setMinimumSize(1000, 600)
@@ -104,11 +104,19 @@ class MainWindow(QMainWindow):
         self.plans_received.connect(self._on_plans)
         self.toggle_requested.connect(self.toggle_visibility)
         self.advisor.execute_requested.connect(self._on_execute_requested)
+        self.advisor.mode_changed.connect(self.set_mode)
 
         # ── M8: executor state ──
         self._executor: ActionExecutor = ActionExecutor()
         self._mode: BotMode = BotMode.ASSIST
         self._current_plans: list[ActionPlan] = []
+
+        # ── Full-bot params persistence (design §8.10) ──
+        self._data_dir = data_dir
+        if data_dir is not None:
+            params = BotParams.load(data_dir)
+            self.advisor.bot_params.set_params(params)
+            self.set_mode(params.mode)
 
         # ── Restore window geometry ──
         self._settings = QSettings("EU4Assistant", "MainWindow")
@@ -136,9 +144,28 @@ class MainWindow(QMainWindow):
         self.log.add_entry(level, message)
 
     def set_mode(self, mode: BotMode) -> None:
-        """Set execution mode and update the advisor mode label."""
+        """Set execution mode, sync the selector, and refresh the bot-state indicator."""
         self._mode = mode
-        self.advisor.set_mode_label(mode.display_label)
+        self.advisor.select_mode(mode)
+        self._sync_bot_state_to_mode()
+
+    def _sync_bot_state_to_mode(self) -> None:
+        """OFF in Advisor (passive); ACTIVE when a bot mode is selected."""
+        state = BotState.OFF if self._mode == BotMode.ASSIST else BotState.ACTIVE
+        self.advisor.set_bot_state(state)
+
+    def _reflect_bot_state(self, results: list[ExecutionResult]) -> None:
+        """Drive the bot-state indicator from execution results (design §5.5)."""
+        if any(r.status in ("blocked", "error", "failed") for r in results):
+            self.advisor.set_bot_state(BotState.ERROR)
+        else:
+            self._sync_bot_state_to_mode()
+
+    def _save_bot_params(self) -> None:
+        """Persist the current full-bot params + active mode to ``bot_params.json``."""
+        if self._data_dir is None:
+            return
+        self.advisor.bot_params.get_params(self._mode).save(self._data_dir)
 
     # ── Slots ──────────────────────────────────────────────────────────────
 
@@ -181,6 +208,7 @@ class MainWindow(QMainWindow):
                 continue
             level = LogLevel.ACTION if result.status in ("executed", "executed_no_pause", "advisory") else LogLevel.ALERT
             self.push_log(level, f"[{result.action_type}] {result.status} — {result.reason}")
+        self._reflect_bot_state(results)
 
     def _confirm_plan(self, plan: ActionPlan) -> bool:
         """Confirmation gate passed to ActionExecutor.execute() before a real action."""
@@ -205,5 +233,6 @@ class MainWindow(QMainWindow):
             self.activateWindow()
 
     def closeEvent(self, event: "QCloseEvent") -> None:  # type: ignore[override]
+        self._save_bot_params()
         self._settings.setValue("geometry", self.saveGeometry())
         super().closeEvent(event)

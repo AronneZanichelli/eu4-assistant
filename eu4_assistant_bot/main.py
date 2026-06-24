@@ -201,8 +201,11 @@ def run_with_ui(
     logger.info("Starting EU4 Assistant (UI mode) in mode: %s", mode.value)
 
     app = QApplication.instance() or QApplication([])
-    window = MainWindow()
-    window.set_mode(mode)
+    window = MainWindow(data_dir=config.data_dir)
+    # CLI --mode overrides the persisted mode only when an explicit bot mode is
+    # given; otherwise the mode persisted in bot_params.json (design §5.3) is kept.
+    if mode != BotMode.ASSIST:
+        window.set_mode(mode)
     window.show()
 
     engine = DecisionEngine(thresholds=config.decision)

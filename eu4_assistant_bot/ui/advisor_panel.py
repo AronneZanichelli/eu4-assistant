@@ -1,8 +1,11 @@
 """Advisor panel — center column with top-3 recommendations and alert badges."""
 from __future__ import annotations
 
+from enum import Enum
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -11,7 +14,26 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ..config import BotMode
 from ..decision_engine import Recommendation, RiskAlerts
+from .bot_params_panel import BotParamsPanel
+
+
+class BotState(Enum):
+    """Visible full-bot state (design §5.5)."""
+    OFF = "off"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    ERROR = "error"
+
+
+# icon + label + colour per state, single source of truth for the indicator.
+_BOT_STATE_DISPLAY: dict[BotState, tuple[str, str]] = {
+    BotState.OFF: ("○ Off", "#777"),
+    BotState.ACTIVE: ("● Attivo", "#4a9"),
+    BotState.PAUSED: ("⏸ In pausa", "#fc0"),
+    BotState.ERROR: ("✕ Errore", "#b22"),
+}
 
 
 class _RecommendationCard(QFrame):
@@ -70,6 +92,7 @@ class AdvisorPanel(QWidget):
     """Center panel: top-3 recommendation cards + alert badges + mode switch."""
 
     execute_requested = pyqtSignal(str)  # category of the recommendation to execute
+    mode_changed = pyqtSignal(object)    # BotMode chosen by the user via the mode selector
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -103,12 +126,25 @@ class AdvisorPanel(QWidget):
 
         layout.addStretch()
 
+        # ── Full-bot parameters panel ──
+        self.bot_params = BotParamsPanel()
+        layout.addWidget(self.bot_params)
+
         # ── Mode switch ──
         mode_row = QHBoxLayout()
         self._lbl_mode = QLabel("Modalità: Advisor")
         self._lbl_mode.setStyleSheet("font-size: 12px; color: #aaa;")
         mode_row.addWidget(self._lbl_mode)
         mode_row.addStretch()
+        self._bot_state = BotState.OFF
+        self._lbl_bot_state = QLabel()
+        mode_row.addWidget(self._lbl_bot_state)
+        self.set_bot_state(BotState.OFF)
+        self._mode_combo = QComboBox()
+        for mode in (BotMode.ASSIST, BotMode.SEMI_BOT, BotMode.FULL_BOT):
+            self._mode_combo.addItem(mode.display_label, mode)
+        self._mode_combo.currentIndexChanged.connect(self._on_mode_combo_changed)
+        mode_row.addWidget(self._mode_combo)
         layout.addLayout(mode_row)
 
     # ── Public API ──────────────────────────────────────────────────────────
@@ -129,6 +165,30 @@ class AdvisorPanel(QWidget):
 
     def set_mode_label(self, text: str) -> None:
         self._lbl_mode.setText(f"Modalità: {text}")
+
+    def set_bot_state(self, state: BotState) -> None:
+        """Update the visible full-bot state indicator (design §5.5)."""
+        self._bot_state = state
+        text, colour = _BOT_STATE_DISPLAY[state]
+        self._lbl_bot_state.setText(text)
+        self._lbl_bot_state.setStyleSheet(
+            f"font-size: 12px; font-weight: bold; color: {colour};"
+        )
+
+    def select_mode(self, mode: BotMode) -> None:
+        """Sync the mode selector programmatically without emitting mode_changed."""
+        idx = self._mode_combo.findData(mode)
+        if idx >= 0:
+            self._mode_combo.blockSignals(True)
+            self._mode_combo.setCurrentIndex(idx)
+            self._mode_combo.blockSignals(False)
+        self.set_mode_label(mode.display_label)
+
+    def _on_mode_combo_changed(self) -> None:
+        mode = self._mode_combo.currentData()
+        if mode is not None:
+            self.set_mode_label(mode.display_label)
+            self.mode_changed.emit(mode)
 
     def _set_badge(self, key: str, active: bool) -> None:
         lbl = self._alert_labels.get(key)
