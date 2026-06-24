@@ -1,4 +1,4 @@
-"""Tests for ActionExecutor — simulate() (M1-M7) and execute() (M8)."""
+"""Tests for ActionExecutor — simulate() (M1-M7) and execute() (M8 + M1 safety gate)."""
 
 from eu4_assistant_bot.config import BotMode
 from eu4_assistant_bot.executor import ActionExecutor
@@ -45,17 +45,32 @@ def test_simulate_executes_in_semi_bot_mode() -> None:
     assert out[0].simulated_effects["projected_direction"] == "up"
 
 
-# ── execute() tests (M8) ───────────────────────────────────────────────────────
+# ── execute() tests (M8 + M1 safety gate) ──────────────────────────────────────
 
-def _make_plan(action_type: str = "economy_stabilize_budget") -> ActionPlan:
+def _make_plan(
+    action_type: str = "economy_stabilize_budget",
+    *,
+    requires_confirmation: bool = True,
+) -> ActionPlan:
     return ActionPlan(
         id="test:80",
         action_type=action_type,
         priority=0.8,
         confidence=0.75,
         expected_outcome={"target_metric": "monthly_balance", "target_above": 0.0},
-        requires_confirmation=True,
+        requires_confirmation=requires_confirmation,
     )
+
+
+def _recorder():
+    """Return (sent, sender): a key sender that records keys instead of touching pyautogui."""
+    sent: list[str] = []
+
+    def sender(key: str) -> bool:
+        sent.append(key)
+        return True
+
+    return sent, sender
 
 
 def test_execute_assist_mode_returns_advisory() -> None:
@@ -67,22 +82,82 @@ def test_execute_assist_mode_returns_advisory() -> None:
     assert out[0].reason == "assist_mode_advisory_only"
 
 
-def test_execute_semi_bot_mode_without_pyautogui() -> None:
-    """In SEMI_BOT mode without pyautogui, execute() returns executed_no_pause."""
-    # pyautogui may or may not be installed in CI; either status is acceptable
-    out = ActionExecutor().execute([_make_plan()], mode=BotMode.SEMI_BOT)
+def test_execute_blocks_confirmation_required_without_confirm() -> None:
+    """SEMI_BOT: a requires_confirmation plan is blocked when no confirm is given."""
+    sent, sender = _recorder()
+    out = ActionExecutor(key_sender=sender, focus_check=lambda: True).execute(
+        [_make_plan()], mode=BotMode.SEMI_BOT
+    )
 
-    assert len(out) == 1
-    assert out[0].status in ("executed", "executed_no_pause")
-    assert out[0].action_type == "economy_stabilize_budget"
+    assert out[0].status == "blocked"
+    assert out[0].reason == "confirmation_required"
+    assert sent == []  # no keystroke reached the game
 
 
-def test_execute_full_bot_mode_without_pyautogui() -> None:
-    """FULL_BOT behaves identically to SEMI_BOT for M8 MVP."""
-    out = ActionExecutor().execute([_make_plan()], mode=BotMode.FULL_BOT)
+def test_execute_full_bot_blocks_confirmation_required_without_confirm() -> None:
+    """FULL_BOT cannot bypass the gate for a requires_confirmation plan."""
+    sent, sender = _recorder()
+    out = ActionExecutor(key_sender=sender, focus_check=lambda: True).execute(
+        [_make_plan(requires_confirmation=True)], mode=BotMode.FULL_BOT
+    )
 
-    assert len(out) == 1
-    assert out[0].status in ("executed", "executed_no_pause")
+    assert out[0].status == "blocked"
+    assert sent == []
+
+
+def test_execute_semi_bot_with_confirm_sends_space() -> None:
+    """SEMI_BOT with confirmation granted sends exactly the Space key."""
+    sent, sender = _recorder()
+    out = ActionExecutor(key_sender=sender, focus_check=lambda: True).execute(
+        [_make_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _plan: True
+    )
+
+    assert out[0].status == "executed"
+    assert sent == ["space"]
+
+
+def test_execute_full_bot_with_confirm_sends_space() -> None:
+    """FULL_BOT with acknowledgement sends exactly the Space key."""
+    sent, sender = _recorder()
+    out = ActionExecutor(key_sender=sender, focus_check=lambda: True).execute(
+        [_make_plan()], mode=BotMode.FULL_BOT, confirm=lambda _plan: True
+    )
+
+    assert out[0].status == "executed"
+    assert sent == ["space"]
+
+
+def test_execute_full_bot_runs_autonomous_plan_without_confirm() -> None:
+    """FULL_BOT runs a non-confirmation plan autonomously (SEMI/FULL distinction)."""
+    sent, sender = _recorder()
+    out = ActionExecutor(key_sender=sender, focus_check=lambda: True).execute(
+        [_make_plan(requires_confirmation=False)], mode=BotMode.FULL_BOT
+    )
+
+    assert out[0].status == "executed"
+    assert sent == ["space"]
+
+
+def test_execute_semi_bot_requires_confirm_even_for_autonomous_plan() -> None:
+    """SEMI_BOT confirms every action, even one not flagged requires_confirmation."""
+    sent, sender = _recorder()
+    out = ActionExecutor(key_sender=sender, focus_check=lambda: True).execute(
+        [_make_plan(requires_confirmation=False)], mode=BotMode.SEMI_BOT
+    )
+
+    assert out[0].status == "blocked"
+    assert sent == []
+
+
+def test_execute_skips_keystroke_when_not_focused() -> None:
+    """Even with confirmation, no key is sent when EU4 is not focused (focus guard)."""
+    sent, sender = _recorder()
+    out = ActionExecutor(key_sender=sender, focus_check=lambda: False).execute(
+        [_make_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _plan: True
+    )
+
+    assert out[0].status == "executed_no_pause"
+    assert sent == []
 
 
 def test_execute_returns_result_per_plan() -> None:
@@ -110,7 +185,7 @@ def test_execute_confidence_preserved() -> None:
 
 
 def test_pause_game_returns_bool() -> None:
-    """_pause_game() must always return a bool (True if sent, False on error)."""
-    result = ActionExecutor._pause_game()
+    """_pause_game() must always return a bool (True if sent, False on error/skip)."""
+    result = ActionExecutor()._pause_game()
 
     assert isinstance(result, bool)

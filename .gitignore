@@ -14,3 +14,4 @@ venv/
 *.log
 *.eu4
 events.jsonl
+graphify-out/

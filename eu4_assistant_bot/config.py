@@ -16,6 +16,20 @@ class BotMode(str, Enum):
     SEMI_BOT = "semi-bot"
     FULL_BOT = "full-bot"
 
+    @property
+    def display_label(self) -> str:
+        """Human-facing label used in the UI and docs.
+
+        The enum *value* (``assist`` / ``semi-bot`` / ``full-bot``) is the
+        canonical CLI/config token; this property is the single source of truth
+        for the display label so UI, CLI and docs agree.
+        """
+        return {
+            BotMode.ASSIST: "Advisor",
+            BotMode.SEMI_BOT: "Semi-bot",
+            BotMode.FULL_BOT: "Full-bot",
+        }[self]
+
 
 class RiskProfile(str, Enum):
     SAFE = "safe"

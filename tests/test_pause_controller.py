@@ -27,7 +27,7 @@ class TestPauseControllerRebels:
         result = ctrl.check(_snap(rebels=0.75))
         assert result is not None
         assert result.reason == PauseReason.REBELS_IMMINENT
-        assert keys == ["F1"]
+        assert keys == ["space"]
 
     def test_no_spam_same_rebels_reason(self) -> None:
         """Second consecutive rebels check should not re-trigger."""
@@ -36,7 +36,7 @@ class TestPauseControllerRebels:
         ctrl.check(_snap(rebels=0.80))
         result2 = ctrl.check(_snap(rebels=0.80))
         assert result2 is None
-        assert keys == ["F1"]  # only one
+        assert keys == ["space"]  # only one
 
     def test_re_triggers_after_clear(self) -> None:
         """After rebels drop and rise again, should trigger again."""
@@ -46,7 +46,7 @@ class TestPauseControllerRebels:
         ctrl.check(_snap(rebels=0.20))  # clears
         result = ctrl.check(_snap(rebels=0.80))
         assert result is not None
-        assert keys == ["F1", "F1"]
+        assert keys == ["space", "space"]
 
 
 class TestPauseControllerWar:
@@ -64,7 +64,7 @@ class TestPauseControllerWar:
         result = ctrl.check(_snap(active_wars=1))  # new war declared
         assert result is not None
         assert result.reason == PauseReason.WAR_DECLARED
-        assert keys == ["F1"]
+        assert keys == ["space"]
 
     def test_no_pause_same_wars(self) -> None:
         keys: list[str] = []

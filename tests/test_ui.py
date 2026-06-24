@@ -139,6 +139,16 @@ class TestMainWindow:
         win.toggle_visibility()
         assert win.isVisible()
 
+    def test_toggle_requested_signal_toggles(self, qapp: QApplication) -> None:
+        """The thread-safe toggle_requested signal drives toggle_visibility."""
+        win = MainWindow()
+        win.show()
+        assert win.isVisible()
+        win.toggle_requested.emit()
+        assert not win.isVisible()
+        win.toggle_requested.emit()
+        assert win.isVisible()
+
     def test_push_snapshot_updates_dashboard(self, qapp: QApplication) -> None:
         win = MainWindow()
         snap = _snap()

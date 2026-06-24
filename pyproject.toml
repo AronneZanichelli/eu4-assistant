@@ -20,6 +20,8 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Games/Entertainment :: Turn Based Strategy",
 ]
 dependencies = [
@@ -37,9 +39,10 @@ bot = [
     "pyautogui>=0.9,<1.0",
 ]
 dev = [
+    # Test deps only. pynput/pyautogui are optional runtime backends (see [ui]/[bot]),
+    # lazy-imported and not needed to run the suite — kept out so CI installs on 3.13/3.14.
     "pytest>=7.0",
     "PyQt6>=6.5,<7.0",
-    "pynput>=1.7,<2.0",
 ]
 pkg = [
     "pyinstaller>=5.0,<7.0",

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import pytest
-from eu4_assistant_bot.parser import ClausewitzParser, ClausewitzTextParser, EU4RulesLoader
+from eu4_assistant_bot.parser import ClausewitzTextParser, EU4RulesLoader
 
 
 # ── ClausewitzTextParser — scalari ────────────────────────────────────────────
@@ -146,16 +146,6 @@ def test_parse_anonymous_block_list_nested():
     assert isinstance(armies, list)
     assert len(armies) == 2
     assert armies[1]["location"] == 2
-
-
-# ── backward compat: ClausewitzParser alias ───────────────────────────────────
-
-def test_legacy_alias_still_works(tmp_path):
-    f = tmp_path / "unit.txt"
-    f.write_text('discipline = 0.05\nname = "Infantry"\n')
-    result = ClausewitzParser().parse_file(f)
-    assert result["discipline"] == "0.05"
-    assert result["name"] == "Infantry"
 
 
 # ── EU4RulesLoader ────────────────────────────────────────────────────────────

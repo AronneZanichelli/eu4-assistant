@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import re
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -229,16 +228,6 @@ class _LegacyClausewitzParser:
                 value = raw_value.split("#", 1)[0].strip()
             parsed[key] = value
         return parsed
-
-
-# Deprecated alias — do not use in new code
-def ClausewitzParser(*args: object, **kwargs: object) -> _LegacyClausewitzParser:  # type: ignore[misc]
-    warnings.warn(
-        "ClausewitzParser is deprecated; use ClausewitzTextParser instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return _LegacyClausewitzParser(*args, **kwargs)  # type: ignore[arg-type]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

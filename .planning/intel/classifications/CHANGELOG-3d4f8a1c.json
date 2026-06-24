@@ -1,0 +1,24 @@
+{
+  "source_path": "/mnt/c/Dev/eu4-assistant/CHANGELOG.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Changelog",
+  "summary": "Version history of EU4 Assistant Bot documenting milestones M1 through M10 across releases.",
+  "scope": [
+    "ClausewitzTextParser",
+    "StateExtractor",
+    "FileWatcher",
+    "DecisionEngine",
+    "ActionExecutor",
+    "PyQt6 UI (MainWindow, DashboardPanel, AdvisorPanel, LogPanel)",
+    "GameSnapshot models",
+    "SnapshotReader",
+    "PyInstaller packaging",
+    "GitHub Actions CI/build"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

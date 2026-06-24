@@ -1,5 +1,7 @@
 # EU4 Assistant + Bot — Progettazione v1.0 (definitiva)
 
+> **Versione:** "v1.0" in questo documento indica la *release stabile target* (la milestone finale del progetto, dopo M10). Il pacchetto attualmente pubblicato è **0.5.0** (alpha) — la fonte canonica della versione software è `pyproject.toml` / `__init__.py` / `CHANGELOG.md`.
+
 ## 1. Obiettivo del progetto
 
 Applicazione desktop Windows che si affianca a Europa Universalis IV in tempo quasi-reale, con tre modalità operative selezionabili durante la sessione di gioco.

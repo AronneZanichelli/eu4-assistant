@@ -148,6 +148,22 @@ def run(
     return 0
 
 
+def _save_to_snapshot(path: Path) -> GameSnapshot:
+    """Run the live pipeline for a single save: unzip -> parse -> extract.
+
+    Defined at module level (not nested in ``run_with_ui``) so the live path
+    can be integration-tested directly. Raises ``SaveFormatError`` when the
+    save cannot be unzipped or read.
+    """
+    from .extractor import StateExtractor  # noqa: PLC0415
+    from .parser import ClausewitzTextParser  # noqa: PLC0415
+    from .save_unzipper import SaveUnzipper  # noqa: PLC0415
+
+    gamestate_text = SaveUnzipper().extract_gamestate(path)
+    tree = ClausewitzTextParser().parse_text(gamestate_text)
+    return StateExtractor().extract(tree)
+
+
 def run_with_ui(
     mode: BotMode,
     save_path: Path,
@@ -170,10 +186,10 @@ def run_with_ui(
             "Install with: pip install eu4-assistant-bot[ui]"
         ) from exc
 
-    from .extractor import StateExtractor  # noqa: PLC0415
-    from .parser import ClausewitzTextParser  # noqa: PLC0415
-    from .save_unzipper import SaveFormatError, SaveUnzipper  # noqa: PLC0415
+    from .pause_controller import PauseController  # noqa: PLC0415
+    from .save_unzipper import SaveFormatError  # noqa: PLC0415
     from .ui import MainWindow  # noqa: PLC0415
+    from .ui.hotkey import HotkeyManager  # noqa: PLC0415
     from .ui.log_panel import LogLevel  # noqa: PLC0415
     from .watcher import FileWatcher, SaveEventType  # noqa: PLC0415
 
@@ -191,23 +207,37 @@ def run_with_ui(
 
     engine = DecisionEngine(thresholds=config.decision)
     executor = ActionExecutor()
-    unzipper = SaveUnzipper()
-    extractor = StateExtractor()
+    pause = PauseController(
+        on_pause=lambda ev: window.push_log(LogLevel.ALERT, f"⏸ Auto-pausa: {ev.message}"),
+    )
+
+    # Global F2 toggle. Degrade gracefully if the pynput backend is unavailable.
+    try:
+        hotkey = HotkeyManager(callback=window.toggle_requested.emit, key="f2")
+        hotkey.start()
+        app.aboutToQuit.connect(hotkey.stop)
+    except Exception as exc:  # noqa: BLE001 — global-hotkey backend is optional
+        logger.warning("Global hotkey unavailable (%s); F2 toggle disabled", exc)
+        window.push_log(LogLevel.ALERT, "Hotkey globale F2 non disponibile (backend assente).")
 
     def _process_save(path: Path) -> None:
         """Called from watcher background thread on each save change."""
         try:
-            gamestate_text = unzipper.extract_gamestate(path)
-            tree = ClausewitzTextParser().parse(gamestate_text)
-            snapshot = extractor.extract(tree)
-        except (SaveFormatError, Exception) as exc:
-            logger.warning("Failed to parse save %s: %s", path, exc)
-            window.push_log(LogLevel.ERROR, f"Errore parsing save: {exc}")
+            snapshot = _save_to_snapshot(path)
+        except SaveFormatError as exc:
+            logger.warning("Bad save %s: %s", path, exc)
+            window.push_log(LogLevel.ERROR, f"Save illeggibile: {exc}")
+            return
+        except Exception:  # noqa: BLE001 — unexpected internal error: log with traceback, keep loop alive
+            logger.exception("Unexpected error processing save %s", path)
+            window.push_log(LogLevel.ERROR, f"Errore interno (vedi log): {path.name}")
             return
 
         risks = engine.evaluate_risks(snapshot)
         recommendations = engine.recommend(snapshot)
         plans = engine.build_action_plans(snapshot)
+
+        pause.check(snapshot)  # auto-pause EU4 on rebels-imminent / war-declared
 
         window.push_snapshot(snapshot)
         window.push_recommendations(recommendations)

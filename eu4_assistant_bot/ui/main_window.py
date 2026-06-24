@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
     recommendations_received = pyqtSignal(object)  # list[Recommendation]
     alerts_received = pyqtSignal(object)           # RiskAlerts
     plans_received = pyqtSignal(object)            # list[ActionPlan]
+    toggle_requested = pyqtSignal()                # F2 global hotkey (thread-safe toggle)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -101,6 +102,7 @@ class MainWindow(QMainWindow):
         self.recommendations_received.connect(self._on_recommendations)
         self.alerts_received.connect(self._on_alerts)
         self.plans_received.connect(self._on_plans)
+        self.toggle_requested.connect(self.toggle_visibility)
         self.advisor.execute_requested.connect(self._on_execute_requested)
 
         # ── M8: executor state ──
@@ -136,7 +138,7 @@ class MainWindow(QMainWindow):
     def set_mode(self, mode: BotMode) -> None:
         """Set execution mode and update the advisor mode label."""
         self._mode = mode
-        self.advisor.set_mode_label(mode.value)
+        self.advisor.set_mode_label(mode.display_label)
 
     # ── Slots ──────────────────────────────────────────────────────────────
 
@@ -164,30 +166,37 @@ class MainWindow(QMainWindow):
             return
 
         if self._mode == BotMode.ASSIST:
-            self.push_log(LogLevel.DECISION, "Modalità Advisor: esecuzione disabilitata.")
+            self.push_log(LogLevel.DECISION, f"Modalità Advisor: esecuzione disabilitata [{category}].")
             return
 
-        if self._mode == BotMode.SEMI_BOT:
-            plan = self._current_plans[0]
-            reply = QMessageBox.question(
-                self,
-                "Conferma esecuzione",
-                f"Eseguire azione '{plan.action_type}' (priorità {plan.priority:.0%})?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
-            if reply != QMessageBox.StandardButton.Yes:
-                self.push_log(LogLevel.DECISION, f"Esecuzione annullata dall'utente [{category}].")
-                return
-
-        results = self._executor.execute(self._current_plans, self._mode)
+        # The confirmation gate is enforced inside execute(); the dialog is the
+        # acknowledgement it calls back into (SEMI_BOT every action, FULL_BOT only
+        # actions flagged requires_confirmation).
+        results = self._executor.execute(
+            self._current_plans, self._mode, confirm=self._confirm_plan
+        )
         for result in results:
+            if result.status == "blocked":
+                self.push_log(LogLevel.DECISION, f"[{result.action_type}] esecuzione annullata (conferma negata).")
+                continue
             level = LogLevel.ACTION if result.status in ("executed", "executed_no_pause", "advisory") else LogLevel.ALERT
             self.push_log(level, f"[{result.action_type}] {result.status} — {result.reason}")
 
+    def _confirm_plan(self, plan: ActionPlan) -> bool:
+        """Confirmation gate passed to ActionExecutor.execute() before a real action."""
+        reply = QMessageBox.question(
+            self,
+            "Conferma esecuzione",
+            f"Eseguire azione '{plan.action_type}' (priorità {plan.priority:.0%})?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
     # ── Window management ──────────────────────────────────────────────────
 
+    @pyqtSlot()
     def toggle_visibility(self) -> None:
-        """F2 hotkey handler: show/hide the window."""
+        """F2 hotkey handler: show/hide the window (thread-safe via toggle_requested)."""
         if self.isVisible():
             self.hide()
         else:
