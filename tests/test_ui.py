@@ -167,6 +167,25 @@ class TestBotParamsPanel:
         assert out.coalition_risk_threshold == 0.33
         assert out.manpower_ratio_threshold == 0.44
 
+    def test_colonial_targets_roundtrip(self, qapp: QApplication) -> None:
+        """colonial_targets list set_params→get_params as comma-separated integers."""
+        from eu4_assistant_bot.ui.bot_params_panel import BotParamsPanel
+
+        panel = BotParamsPanel()
+        bp = BotParams(mode=BotMode.FULL_BOT, colonial_targets=[484, 482])
+        panel.set_params(bp)
+        out = panel.get_params(BotMode.FULL_BOT)
+        assert out.colonial_targets == [484, 482]
+
+    def test_colonial_targets_bad_token_gracefully_ignored(self, qapp: QApplication) -> None:
+        """Non-numeric tokens in the QLineEdit are silently dropped on get_params."""
+        from eu4_assistant_bot.ui.bot_params_panel import BotParamsPanel
+
+        panel = BotParamsPanel()
+        panel._targets.setText("484, abc, 482, ")
+        out = panel.get_params(BotMode.ASSIST)
+        assert out.colonial_targets == [484, 482]
+
 
 class TestAdvisorBotParams:
     def test_advisor_exposes_bot_params_panel(self, qapp: QApplication) -> None:

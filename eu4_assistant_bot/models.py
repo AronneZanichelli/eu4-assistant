@@ -69,9 +69,37 @@ class DiplomacyState:
 
 
 @dataclass(slots=True)
+class ColonizableProvince:
+    """A wild province eligible for colonization (design §A2).
+
+    Populated by StateExtractor from save provinces that have no owner and
+    carry a native_size key. Ranked by DecisionEngine.rank_colonizable.
+    """
+
+    province_id: int
+    name: str = ""
+    trade_good: str = "unknown"
+    dev: float = 0.0
+    native_size: float = 0.0
+    native_hostileness: float = 0.0
+    native_ferocity: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.dev < 0:
+            raise ValueError(f"dev must be >= 0, got {self.dev}")
+        if self.native_size < 0:
+            raise ValueError(f"native_size must be >= 0, got {self.native_size}")
+        if self.native_hostileness < 0:
+            raise ValueError(f"native_hostileness must be >= 0, got {self.native_hostileness}")
+        if self.native_ferocity < 0:
+            raise ValueError(f"native_ferocity must be >= 0, got {self.native_ferocity}")
+
+
+@dataclass(slots=True)
 class ColonialState:
     colonists_free: int = 0
     active_colonies: list[dict[str, Any]] = field(default_factory=list)
+    colonizable: list[ColonizableProvince] = field(default_factory=list)
 
 
 @dataclass(slots=True)

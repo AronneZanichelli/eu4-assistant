@@ -136,10 +136,16 @@ class BotParams:
     max_recruits_per_cycle: int = 8
     enabled_categories: list[str] = field(default_factory=lambda: list(_DEFAULT_CATEGORIES))
     colonial_mode: str = "autonomous"
+    colonial_targets: list[int] = field(default_factory=list)
     coalition_risk_threshold: float = 0.65
     manpower_ratio_threshold: float = 0.18
 
     def __post_init__(self) -> None:
+        for t in self.colonial_targets:
+            if not isinstance(t, int):
+                raise TypeError(
+                    f"colonial_targets entries must be int, got {type(t).__name__!r}"
+                )
         if not (0.0 <= self.max_monthly_spend_ratio <= 1.0):
             raise ValueError(
                 f"max_monthly_spend_ratio must be in [0, 1], got {self.max_monthly_spend_ratio}"
@@ -169,6 +175,7 @@ class BotParams:
             "max_recruits_per_cycle": self.max_recruits_per_cycle,
             "enabled_categories": list(self.enabled_categories),
             "colonial_mode": self.colonial_mode,
+            "colonial_targets": list(self.colonial_targets),
             "coalition_risk_threshold": self.coalition_risk_threshold,
             "manpower_ratio_threshold": self.manpower_ratio_threshold,
         }
@@ -202,6 +209,7 @@ class BotParams:
                 ),
                 enabled_categories=list(data.get("enabled_categories", defaults.enabled_categories)),
                 colonial_mode=str(data.get("colonial_mode", defaults.colonial_mode)),
+                colonial_targets=[int(x) for x in data.get("colonial_targets", [])],
                 coalition_risk_threshold=float(
                     data.get("coalition_risk_threshold", defaults.coalition_risk_threshold)
                 ),

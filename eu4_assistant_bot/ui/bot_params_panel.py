@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QLineEdit,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -54,6 +55,10 @@ class BotParamsPanel(QWidget):
         self._colonial.addItem("Lista target", "target_list")
         form.addRow("Modalità colonial", self._colonial)
 
+        self._targets = QLineEdit()
+        self._targets.setPlaceholderText("es. 484, 482")
+        form.addRow("Province target (id, separati da virgola)", self._targets)
+
         # Enabled categories — one checkbox per actionable category.
         cats_row = QHBoxLayout()
         self._categories: dict[str, QCheckBox] = {}
@@ -85,12 +90,21 @@ class BotParamsPanel(QWidget):
         self._recruits.setValue(bp.max_recruits_per_cycle)
         self._risk.setCurrentIndex(self._risk.findData(bp.risk_profile))
         self._colonial.setCurrentIndex(self._colonial.findData(bp.colonial_mode))
+        self._targets.setText(", ".join(str(x) for x in bp.colonial_targets))
         for cat, cb in self._categories.items():
             cb.setChecked(cat in bp.enabled_categories)
         self._coalition.setValue(bp.coalition_risk_threshold)
         self._manpower.setValue(bp.manpower_ratio_threshold)
 
     def get_params(self, mode: BotMode) -> BotParams:
+        targets: list[int] = []
+        for tok in self._targets.text().split(","):
+            tok = tok.strip()
+            if tok:
+                try:
+                    targets.append(int(tok))
+                except ValueError:
+                    pass  # silently ignore non-numeric tokens
         return BotParams(
             mode=mode,
             risk_profile=self._risk.currentData(),
@@ -98,6 +112,7 @@ class BotParamsPanel(QWidget):
             max_recruits_per_cycle=self._recruits.value(),
             enabled_categories=[c for c in _DEFAULT_CATEGORIES if self._categories[c].isChecked()],
             colonial_mode=self._colonial.currentData(),
+            colonial_targets=targets,
             coalition_risk_threshold=self._coalition.value(),
             manpower_ratio_threshold=self._manpower.value(),
         )

@@ -235,8 +235,13 @@ def run_with_ui(
             window.push_log(LogLevel.ERROR, f"Errore interno (vedi log): {path.name}")
             return
 
+        bot_params = window.advisor.bot_params.get_params(window._mode)
         risks = engine.evaluate_risks(snapshot)
-        recommendations = engine.recommend(snapshot)
+        recommendations = engine.recommend(
+            snapshot,
+            mode=bot_params.colonial_mode,
+            targets=bot_params.colonial_targets,
+        )
         plans = engine.build_action_plans(snapshot)
 
         pause.check(snapshot)  # auto-pause EU4 on rebels-imminent / war-declared

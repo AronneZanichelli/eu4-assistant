@@ -93,3 +93,22 @@ def test_botparams_rejects_invalid_coalition_threshold() -> None:
 def test_botparams_rejects_unknown_colonial_mode() -> None:
     with pytest.raises(ValueError):
         BotParams(colonial_mode="nonsense")
+
+
+# ── A2: colonial_targets field ────────────────────────────────────────────────
+
+
+def test_botparams_colonial_targets_default_empty() -> None:
+    assert BotParams().colonial_targets == []
+
+
+def test_botparams_colonial_targets_roundtrip(tmp_path: Path) -> None:
+    bp = BotParams(colonial_targets=[484, 482])
+    bp.save(tmp_path)
+    loaded = BotParams.load(tmp_path)
+    assert loaded.colonial_targets == [484, 482]
+
+
+def test_botparams_rejects_invalid_colonial_targets() -> None:
+    with pytest.raises((ValueError, TypeError)):
+        BotParams(colonial_targets=["abc"])  # type: ignore[arg-type]

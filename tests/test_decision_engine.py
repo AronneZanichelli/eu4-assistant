@@ -5,6 +5,7 @@ from eu4_assistant_bot.decision_engine import DecisionEngine, RiskCode
 from eu4_assistant_bot.models import (
     ArmyState,
     ColonialState,
+    ColonizableProvince,
     DiplomacyState,
     EconomyState,
     GameSnapshot,
@@ -324,3 +325,138 @@ def test_recommend_includes_tech_recommendation() -> None:
     titles = [r.title for r in recs]
 
     assert any("tech" in t.lower() or "punti" in t.lower() or "Investi" in t for t in titles)
+
+
+# ── A2 rank_colonizable tests ─────────────────────────────────────────────────
+
+def _snap_with_colonizable(*provinces: ColonizableProvince) -> GameSnapshot:
+    """Build a snapshot with the given colonizable provinces and neutral other state."""
+    snap = GameSnapshot.empty("POR")
+    snap.colonial = ColonialState(colonists_free=1, active_colonies=[], colonizable=list(provinces))
+    snap.economy = EconomyState(treasury=200, income=20, expenses=10, debt=0)
+    snap.military = MilitaryState(force_limit=30, manpower=20000, armies=[ArmyState(strength=25000)])
+    snap.diplomacy = DiplomacyState(active_wars=0)
+    snap.risk = RiskState(coalition=0.1, rebels=0.1)
+    return snap
+
+
+def test_rank_colonizable_descending_score_order() -> None:
+    """High-value low-threat province outranks low-value high-threat province."""
+    # Province 1: gold (6.0) + high dev + tiny peaceful natives → top score
+    prov_gold = ColonizableProvince(
+        province_id=1, name="Ouro", trade_good="gold",
+        dev=15.0, native_size=0.5, native_hostileness=1, native_ferocity=1,
+    )
+    # Province 2: grain (1.0) + low dev + large hostile natives → bottom score
+    prov_grain = ColonizableProvince(
+        province_id=2, name="Grain Plains", trade_good="grain",
+        dev=3.0, native_size=7.0, native_hostileness=9, native_ferocity=5,
+    )
+    # Province 3: cloth (2.5) + medium stats → middle score
+    prov_cloth = ColonizableProvince(
+        province_id=3, name="Cloth Land", trade_good="cloth",
+        dev=6.0, native_size=3.0, native_hostileness=3, native_ferocity=2,
+    )
+    scored = DecisionEngine().rank_colonizable(_snap_with_colonizable(prov_grain, prov_cloth, prov_gold))
+    ids = [p.province_id for p, _ in scored]
+    assert ids[0] == 1   # gold first
+    assert ids[-1] == 2  # dangerous grain last
+
+
+def test_rank_colonizable_scores_are_non_negative_and_descending() -> None:
+    """All scores >= 0 and list is non-ascending."""
+    provinces = [
+        ColonizableProvince(province_id=i, trade_good="ivory", dev=float(i),
+                            native_size=float(i % 3), native_hostileness=2, native_ferocity=1)
+        for i in range(1, 6)
+    ]
+    scored = DecisionEngine().rank_colonizable(_snap_with_colonizable(*provinces))
+    scores = [s for _, s in scored]
+    assert all(s >= 0.0 for s in scores)
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_rank_colonizable_unknown_good_nonzero_score() -> None:
+    """trade_good='unknown' uses neutral fallback → score > 0."""
+    prov = ColonizableProvince(
+        province_id=10, name="Mystery Land", trade_good="unknown",
+        dev=6.0, native_size=1.0, native_hostileness=1, native_ferocity=1,
+    )
+    scored = DecisionEngine().rank_colonizable(_snap_with_colonizable(prov))
+    assert len(scored) == 1
+    assert scored[0][1] > 0.0
+
+
+def test_rank_colonizable_bonus_hook_reorders() -> None:
+    """bonus_hook returning positive for province A boosts it above default winner."""
+    prov_grain = ColonizableProvince(
+        province_id=1, name="Grain", trade_good="grain",
+        dev=6.0, native_size=1.0, native_hostileness=1, native_ferocity=1,
+    )
+    prov_ivory = ColonizableProvince(
+        province_id=2, name="Ivory", trade_good="ivory",
+        dev=6.0, native_size=1.0, native_hostileness=1, native_ferocity=1,
+    )
+    snap = _snap_with_colonizable(prov_grain, prov_ivory)
+
+    # Without hook: ivory (2.5) > grain (1.0) — ivory wins
+    plain = DecisionEngine()
+    scored_plain = plain.rank_colonizable(snap)
+    assert scored_plain[0][0].province_id == 2  # ivory first
+
+    # With hook: grain gets x3 multiplier (1 + 2.0) → score = grain_base * 3 > ivory_base * 1
+    # ivory/grain value ratio = 2.5; hook gives 3.0 → grain wins
+    def _boost_grain(p: ColonizableProvince) -> float:
+        return 2.0 if p.province_id == 1 else 0.0
+
+    boosted = DecisionEngine(bonus_hook=_boost_grain)
+    scored_boosted = boosted.rank_colonizable(snap)
+    assert scored_boosted[0][0].province_id == 1  # grain now first
+
+
+def test_rank_colonizable_autonomous_returns_all() -> None:
+    """Mode 'autonomous' returns all provinces regardless of id."""
+    provinces = [
+        ColonizableProvince(province_id=i, dev=float(i)) for i in range(1, 5)
+    ]
+    scored = DecisionEngine().rank_colonizable(_snap_with_colonizable(*provinces), mode="autonomous")
+    assert len(scored) == 4
+
+
+def test_rank_colonizable_target_list_filters_by_id() -> None:
+    """Mode 'target_list' with targets=[2] returns only province 2."""
+    prov_a = ColonizableProvince(province_id=1, trade_good="ivory", dev=10.0)
+    prov_b = ColonizableProvince(province_id=2, trade_good="grain", dev=3.0)
+    prov_c = ColonizableProvince(province_id=3, trade_good="cloth", dev=6.0)
+    scored = DecisionEngine().rank_colonizable(
+        _snap_with_colonizable(prov_a, prov_b, prov_c),
+        mode="target_list",
+        targets=[2],
+    )
+    assert len(scored) == 1
+    assert scored[0][0].province_id == 2
+
+
+def test_rank_colonizable_target_list_empty_returns_empty() -> None:
+    """Mode 'target_list' with empty targets → no provinces ranked."""
+    prov = ColonizableProvince(province_id=1, trade_good="ivory", dev=10.0)
+    scored = DecisionEngine().rank_colonizable(
+        _snap_with_colonizable(prov),
+        mode="target_list",
+        targets=[],
+    )
+    assert scored == []
+
+
+def test_recommend_colonial_rationale_enriched_with_top_target() -> None:
+    """When colonizable provinces exist, colonial Recommendation.rationale names top target."""
+    prov = ColonizableProvince(
+        province_id=484, name="L'Avana", trade_good="ivory",
+        dev=6.0, native_size=1.0, native_hostileness=1, native_ferocity=1,
+    )
+    snap = _snap_with_colonizable(prov)
+    # colonists_free=1, active_colonies=[] → COLONIST_IDLE fires → colonial rec built
+    recs = DecisionEngine().recommend(snap)
+    colonial_recs = [r for r in recs if r.category == "colonial"]
+    assert colonial_recs, "Expected at least one colonial recommendation"
+    assert "L'Avana" in colonial_recs[0].rationale
