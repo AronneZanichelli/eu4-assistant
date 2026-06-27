@@ -135,3 +135,103 @@ def test_extract_produces_valid_snapshot_json():
     parsed = json.loads(snap.to_json())
     assert parsed["country"] == "POR"
     assert parsed["tech"]["adm_tech"] == 5
+
+
+# ── A2 colonial depth tests ───────────────────────────────────────────────────
+
+# Four province types representative of a real EU4 save (see design §A2):
+#   -484  wild / colonizable  : no owner, has native_size + trade_goods
+#   -482  colony-in-progress  : owner=POR + colony_construction block
+#   -1    owned city          : owner=POR, no native_size
+#   -999  sea / wasteland     : no owner, no native_size, no trade_goods
+
+PROVINCES_TREE = {
+    "player": "POR",
+    "countries": {
+        "POR": {
+            "colonists": 1,
+        }
+    },
+    "provinces": {
+        "-484": {
+            "name": "L'Avana",
+            "native_size": 5.0,
+            "native_hostileness": 5,
+            "native_ferocity": 1,
+            "trade_goods": "unknown",
+            "base_tax": 5.0,
+            "base_production": 5.0,
+            "base_manpower": 1.0,
+        },
+        "-482": {
+            "owner": "POR",
+            "name": "Havana Settlement",
+            "native_size": 3.0,
+            "native_hostileness": 5,
+            "native_ferocity": 1,
+            "trade_goods": "unknown",
+            "colony_construction": {
+                "start_date": "1557.03.01",
+            },
+        },
+        "-1": {
+            "owner": "POR",
+            "name": "Lisbon",
+            "base_tax": 10.0,
+            "trade_goods": "cloth",
+        },
+        "-999": {
+            "name": "Atlantic Ocean",
+        },
+    },
+}
+
+
+def test_extract_colonizable_returns_only_wild_province():
+    """Only province 484 qualifies: no owner + has native_size."""
+    snap = StateExtractor().extract(PROVINCES_TREE)
+    ids = [p.province_id for p in snap.colonial.colonizable]
+    assert ids == [484]
+
+
+def test_extract_colonizable_attributes():
+    """Attributes read from save: name, trade_good, dev sum, native fields."""
+    snap = StateExtractor().extract(PROVINCES_TREE)
+    p = snap.colonial.colonizable[0]
+    assert p.province_id == 484
+    assert p.name == "L'Avana"
+    assert p.trade_good == "unknown"
+    assert p.dev == pytest.approx(11.0)  # 5+5+1
+    assert p.native_size == pytest.approx(5.0)
+    assert p.native_hostileness == pytest.approx(5.0)
+    assert p.native_ferocity == pytest.approx(1.0)
+
+
+def test_extract_active_colonies_populated_from_colony_construction():
+    """Province 482 (owner=POR + colony_construction) appears in active_colonies."""
+    snap = StateExtractor().extract(PROVINCES_TREE)
+    ids = [c["province_id"] for c in snap.colonial.active_colonies]
+    assert 482 in ids
+
+
+def test_extract_active_colonies_empty_without_construction():
+    """Tree with no colony_construction block → active_colonies is empty."""
+    tree_no_colonies = {
+        "player": "POR",
+        "countries": {"POR": {}},
+        "provinces": {
+            "-1": {"owner": "POR", "name": "Lisbon", "trade_goods": "cloth"},
+        },
+    }
+    snap = StateExtractor().extract(tree_no_colonies)
+    assert snap.colonial.active_colonies == []
+
+
+def test_extract_colonizable_json_serializable():
+    """ColonizableProvince list survives to_json round-trip via dataclasses.asdict."""
+    import json
+    snap = StateExtractor().extract(PROVINCES_TREE)
+    parsed = json.loads(snap.to_json())
+    col = parsed["colonial"]["colonizable"]
+    assert len(col) == 1
+    assert col[0]["province_id"] == 484

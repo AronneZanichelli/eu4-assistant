@@ -201,8 +201,11 @@ def run_with_ui(
     logger.info("Starting EU4 Assistant (UI mode) in mode: %s", mode.value)
 
     app = QApplication.instance() or QApplication([])
-    window = MainWindow()
-    window.set_mode(mode)
+    window = MainWindow(data_dir=config.data_dir)
+    # CLI --mode overrides the persisted mode only when an explicit bot mode is
+    # given; otherwise the mode persisted in bot_params.json (design §5.3) is kept.
+    if mode != BotMode.ASSIST:
+        window.set_mode(mode)
     window.show()
 
     engine = DecisionEngine(thresholds=config.decision)
@@ -232,8 +235,13 @@ def run_with_ui(
             window.push_log(LogLevel.ERROR, f"Errore interno (vedi log): {path.name}")
             return
 
+        bot_params = window.advisor.bot_params.get_params(window._mode)
         risks = engine.evaluate_risks(snapshot)
-        recommendations = engine.recommend(snapshot)
+        recommendations = engine.recommend(
+            snapshot,
+            mode=bot_params.colonial_mode,
+            targets=bot_params.colonial_targets,
+        )
         plans = engine.build_action_plans(snapshot)
 
         pause.check(snapshot)  # auto-pause EU4 on rebels-imminent / war-declared

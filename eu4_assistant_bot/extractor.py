@@ -9,6 +9,7 @@ from typing import Any
 from .models import (
     ArmyState,
     ColonialState,
+    ColonizableProvince,
     DiplomacyState,
     EconomyState,
     GameSnapshot,
@@ -153,14 +154,67 @@ class StateExtractor:
             active_wars=active_wars,
         )
 
+    def _extract_colonizable(self, tree: dict[str, Any]) -> list[ColonizableProvince]:
+        """Return provinces eligible for colonization (design §A2).
+
+        A province qualifies when it has no ``owner`` key (or empty string)
+        and carries a ``native_size`` key (sea tiles / wastelands lack both).
+        Colonies-in-progress are auto-excluded because they carry an owner.
+        """
+        result: list[ColonizableProvince] = []
+        provinces_raw = tree.get("provinces", {})
+        if not isinstance(provinces_raw, dict):
+            return result
+        for id_str, prov in provinces_raw.items():
+            if not isinstance(prov, dict):
+                continue
+            if prov.get("owner", ""):
+                continue  # owned or colony-in-progress
+            if "native_size" not in prov:
+                continue  # sea tile / wasteland
+            province_id = abs(self._int(id_str, default=0))
+            if province_id == 0:
+                continue
+            dev = (
+                self._float(prov.get("base_tax"), default=0.0)
+                + self._float(prov.get("base_production"), default=0.0)
+                + self._float(prov.get("base_manpower"), default=0.0)
+            )
+            result.append(ColonizableProvince(
+                province_id=province_id,
+                name=self._str(prov.get("name"), default=""),
+                trade_good=self._str(prov.get("trade_goods"), default="unknown"),
+                dev=dev,
+                native_size=self._float(prov.get("native_size"), default=0.0),
+                native_hostileness=self._float(prov.get("native_hostileness"), default=0.0),
+                native_ferocity=self._float(prov.get("native_ferocity"), default=0.0),
+            ))
+        return result
+
     def _extract_colonial(self, tree: dict[str, Any], country: str) -> ColonialState:
         c = self._country_block(tree, country)
         colonists = c.get("colonists", 0)
         if isinstance(colonists, list):
             colonists = len(colonists)
+
+        # Populate active_colonies from provinces owned by this country that
+        # carry a colony_construction block (design §A2 / COLONIST_IDLE fix).
+        active: list[dict[str, Any]] = []
+        provinces_raw = tree.get("provinces", {})
+        if isinstance(provinces_raw, dict):
+            for id_str, prov in provinces_raw.items():
+                if not isinstance(prov, dict):
+                    continue
+                if prov.get("owner", "") != country:
+                    continue
+                if "colony_construction" not in prov:
+                    continue
+                active.append({"province_id": abs(self._int(id_str, default=0))})
+
         return ColonialState(
             colonists_free=self._int(colonists, default=0),
-            active_colonies=[],
+            active_colonies=active,
+            colonizable=self._extract_colonizable(tree),
         )
 
     def _extract_risk(self, tree: dict[str, Any], country: str) -> RiskState:

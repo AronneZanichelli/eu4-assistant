@@ -7,11 +7,12 @@ Thresholds are configurable via :class:`~eu4_assistant_bot.config.DecisionThresh
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
 from .config import DecisionThresholds
-from .models import ActionPlan, GameSnapshot
+from .models import ActionPlan, ColonizableProvince, GameSnapshot
 
 # Recommendation priority constants — tune these to adjust advisor behaviour
 _PRIO_COALITION          = 0.95
@@ -30,6 +31,41 @@ _PRIO_MERCHANT           = 0.71   # M7: undeployed merchant on high-value node
 # M7 economy/colonial thresholds (module-level; not risk-profile-dependent)
 _MERCHANT_NODE_MIN_VALUE: float = 3.0   # minimum node value (ducats) to flag missing merchant
 _TECH_POINT_OVERFLOW: int = 150         # monarch points above which tech spending is advised
+
+# A2 colonial ranking constants (design §A2)
+_GOOD_VALUE_MAX: float = 6.0          # normalisation cap — gold base price
+_DEV_SCALE: float = 30.0              # dev divisor; dev≥30 doubles profit factor
+_NATIVE_SIZE_NORM: float = 8.0        # native_size at which threat factor saturates
+_NATIVE_THREAT_MAX: float = 50.0      # divisor — hostileness*ferocity*f(size)/this
+
+# Trade good base values (design §A2). Source: EU4 common/tradegoods/00_tradegoods.txt.
+# "unknown" = neutral median fallback for undiscovered provinces.
+_TRADE_GOOD_VALUE: dict[str, float] = {
+    "gold":           6.0,
+    "spices":         5.0,
+    "silk":           5.0,
+    "chinaware":      5.0,
+    "coffee":         4.5,
+    "tea":            4.5,
+    "slaves":         4.0,
+    "sugar":          4.0,
+    "dyes":           3.5,
+    "cocoa":          3.5,
+    "tobacco":        3.5,
+    "naval_supplies": 3.0,
+    "copper":         3.0,
+    "iron":           3.0,
+    "salt":           2.5,
+    "cloth":          2.5,
+    "wool":           2.5,
+    "wine":           2.5,
+    "fur":            2.5,
+    "ivory":          2.5,
+    "cotton":         2.0,
+    "fish":           2.0,
+    "unknown":        2.0,  # neutral median fallback
+    "grain":          1.0,
+}
 
 
 @dataclass(slots=True)
@@ -80,8 +116,57 @@ class RiskReason:
 class DecisionEngine:
     """M2 decision engine with explainable recommendations and core alerts."""
 
-    def __init__(self, thresholds: DecisionThresholds | None = None):
+    def __init__(
+        self,
+        thresholds: DecisionThresholds | None = None,
+        *,
+        bonus_hook: Callable[[ColonizableProvince], float] | None = None,
+    ) -> None:
         self.thresholds = thresholds or DecisionThresholds()
+        self._bonus_hook: Callable[[ColonizableProvince], float] = (
+            bonus_hook if bonus_hook is not None else (lambda p: 0.0)
+        )
+
+    def rank_colonizable(
+        self,
+        snapshot: GameSnapshot,
+        mode: str = "autonomous",
+        targets: list[int] | None = None,
+    ) -> list[tuple[ColonizableProvince, float]]:
+        """Rank colonizable provinces by profit×security score (design §A2).
+
+        Args:
+            snapshot: Current game snapshot.
+            mode: ``"autonomous"`` to rank all known provinces; ``"target_list"``
+                  to restrict to the given province ids.
+            targets: Province id whitelist, used only when ``mode="target_list"``.
+
+        Returns:
+            Pairs ``(province, score)`` sorted descending by score.
+        """
+        provinces = snapshot.colonial.colonizable
+        if mode == "target_list":
+            target_ids = set(targets) if targets else set()
+            if not target_ids:
+                return []
+            provinces = [p for p in provinces if p.province_id in target_ids]
+
+        scored: list[tuple[ColonizableProvince, float]] = []
+        for p in provinces:
+            value = _TRADE_GOOD_VALUE.get(p.trade_good, _TRADE_GOOD_VALUE["unknown"])
+            profit = min(1.0, value / _GOOD_VALUE_MAX) * (1.0 + p.dev / _DEV_SCALE)
+            security = max(
+                0.0,
+                1.0 - (
+                    p.native_hostileness * p.native_ferocity
+                    * min(1.0, p.native_size / _NATIVE_SIZE_NORM)
+                ) / _NATIVE_THREAT_MAX,
+            )
+            score = profit * security * (1.0 + self._bonus_hook(p))
+            scored.append((p, score))
+
+        scored.sort(key=lambda t: t[1], reverse=True)
+        return scored
 
     @staticmethod
     def _monthly_balance(snapshot: GameSnapshot) -> float:
@@ -286,7 +371,12 @@ class DecisionEngine:
 
         return reasons
 
-    def recommend(self, snapshot: GameSnapshot) -> list[Recommendation]:
+    def recommend(
+        self,
+        snapshot: GameSnapshot,
+        mode: str = "autonomous",
+        targets: list[int] | None = None,
+    ) -> list[Recommendation]:
         risks = self.evaluate_risks(snapshot)
         recommendations: list[Recommendation] = []
 
@@ -366,10 +456,23 @@ class DecisionEngine:
 
         # M7 colonial recommendations
         if risks.colonial_risk:
+            ranked = self.rank_colonizable(snapshot, mode=mode, targets=targets)
+            if ranked:
+                top = ranked[0][0]
+                rationale = (
+                    f"Hai colonisti liberi senza colonie attive. "
+                    f"Obiettivo suggerito: {top.name} ({top.trade_good}). "
+                    "Avvia la colonizzazione su questa provincia."
+                )
+            else:
+                rationale = (
+                    "Hai colonisti liberi senza colonie attive: individua una provincia "
+                    "costiera o ricca di risorse e avvia la colonizzazione."
+                )
             recommendations.append(
                 Recommendation(
                     title="Invia colonisti nelle province libere",
-                    rationale="Hai colonisti liberi senza colonie attive: individua una provincia costiera o ricca di risorse e avvia la colonizzazione.",
+                    rationale=rationale,
                     priority=_PRIO_COLONIST,
                     category="colonial",
                 )
