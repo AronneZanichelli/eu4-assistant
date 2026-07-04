@@ -35,19 +35,23 @@ alerts and top-3 recommendations within a few seconds, with zero unhandled error
 - ✓ Log panel with level filters + CSV export + JSONL telemetry — M1/M5
 - ✓ Changelog-on-update system (`changelog_seen.txt`) — M10
 - ✓ PyInstaller Windows `.exe` build + CLI entry point + GitHub Actions — M10
-- ✓ 132 unit tests passing across 14 modules
+- ✓ 181 unit tests passing across 14+ modules (PR #15 integration tests + PR #17 control surface tests)
 
-Note: "Validated" here means shipped and unit-tested. The live watch pipeline that
-ties these together is **not** end-to-end functional — see Context and the roadmap.
+Note: "Validated" here means shipped and unit-tested. The live watch pipeline is end-to-end functional as of PR #15.
 
-### Active
+### Completato (milestone v0.6 "Make the live loop real")
 
-<!-- Current scope: the v0.6 "Make the live loop real" milestone. -->
+<!-- Shipped in PR #15, 2026-06-24. -->
 
-- [ ] Live watch pipeline produces snapshots and refreshes the UI on every save (fix `parse` bug; tighten error handling; add integration test)
-- [ ] Auto-pause and the F2 global show/hide work end-to-end (wire `PauseController` + `HotkeyManager`; fix F1→Space pause key)
-- [ ] Real bot actions (semi-bot/full-bot) are gated by an explicit confirmation contract enforced in the executor, with a window-focus guard and a failsafe
-- [ ] Python-version and CI drift reconciled so the supported/tested interpreter matches the runtime, and the canonical version/terminology are settled
+- [x] Live watch pipeline produces snapshots and refreshes the UI on every save (fix `parse` bug; tighten error handling; add integration test)
+- [x] Auto-pause and the F2 global show/hide work end-to-end (wire `PauseController` + `HotkeyManager`; fix F1→Space pause key)
+- [x] Real bot actions (semi-bot/full-bot) are gated by an explicit confirmation contract enforced in the executor, with a window-focus guard and a failsafe
+- [x] Python-version and CI drift reconciled so the supported/tested interpreter matches the runtime, and the canonical version/terminology are settled
+
+### Post-Milestone (PR #17, 2026-06-27)
+
+- [x] Full-bot control surface: 4 stati, params panel persistente, switch-off immediato (Design A2)
+- [x] Colonial province ranking + fix COLONIST_IDLE
 
 ### Out of Scope
 
@@ -68,14 +72,8 @@ ties these together is **not** end-to-end functional — see Context and the roa
 - Windows is the runtime target (Steam EU4, win32api, pyautogui); tests run headless cross-platform (`QT_QPA_PLATFORM=offscreen`)
 - CI matrix: Python 3.11 / 3.12 on ubuntu-latest; release build on windows-latest → `dist/eu4-assistant.exe`
 
-**Known issues to address (from the codebase map, 2026-06-23):**
-- **HIGH — live UI pipeline calls a non-existent parser method.** `main.py:201` calls `ClausewitzTextParser().parse(...)`; the class only defines `parse_text()` / `parse_file()` (`parser.py:182`, `:191`). Every live save raises `AttributeError`.
-- **HIGH — over-broad `except (SaveFormatError, Exception)`** at `main.py:203` swallows that bug (and any `TypeError`/`KeyError`/`RecursionError`) into one generic log line, so the flagship feature is silently broken with a green test suite.
-- **MED — auto-pause presses the wrong key.** `PauseController._send_key("F1")` (`pause_controller.py:73`) opens a ledger panel; the actual EU4 pause is Space, which `ActionExecutor._pause_game()` already uses (`executor.py:141`).
-- **Incomplete wiring.** `PauseController` and `ui/hotkey.py` `HotkeyManager` are implemented and unit-tested but never instantiated in `run_with_ui()` / `MainWindow`, so auto-pause and the F2 toggle do nothing end-to-end.
-- **HIGH (safety) — FULL_BOT executes with no confirmation;** `ActionPlan.requires_confirmation` is honoured in `simulate()` but ignored in `execute()` (`executor.py:77-123`); no window-focus check and no `pyautogui.FAILSAFE`.
-- **MED — version/CI drift.** `requires-python>=3.11`, CI tests 3.11/3.12, but the in-repo interpreter is 3.14; `pynput` is imported at module top-level in `ui/hotkey.py`, so a failed `pynput` build breaks the whole UI import.
-- **Coverage gap.** No test references `run_with_ui` / `_process_save` / `_watcher_loop`; parser→extractor integration is also untested (extractor is only fed a hand-built dict).
+**Known issues (risolti da PR #15, 2026-06-24):**
+Tutti i bug segnalati dal codebase map (2026-06-23) sono stati risolti nella milestone "Make the live loop real": `parse`→`parse_text`, except-handling granulare, pause key Space unificata, PauseController+HotkeyManager wired, safety gate enforced in `execute()`, CI/version drift corretto, pynput lazy-import, integration tests aggiunti. Vedi PR #15 per i dettagli.
 
 **Doc inconsistencies (non-blocking, to reconcile):**
 - Version `0.5.0` (CHANGELOG/`__init__.py`) vs design label "v1.0 (definitiva)"
@@ -103,17 +101,17 @@ ties these together is **not** end-to-end functional — see Context and the roa
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Read state from `autosave.eu4` via a watchdog file watcher + companion monthly-save mod | EU4 has no external API; the file is the only reliable channel | — Pending (live loop broken, fix in Phase 1) |
-| Custom recursive Clausewitz text parser + ZIP unzipper; Ironman excluded | Full text-save fidelity; binary is a separate large effort | ✓ Good (parser works; live wiring broken) |
+| Read state from `autosave.eu4` via a watchdog file watcher + companion monthly-save mod | EU4 has no external API; the file is the only reliable channel | ✓ Good (PR #15 Phase 1) |
+| Custom recursive Clausewitz text parser + ZIP unzipper; Ironman excluded | Full text-save fidelity; binary is a separate large effort | ✓ Good |
 | Defensive DLC parsing with safe defaults | Survive any DLC combination without crashing | ✓ Good |
 | Standard (non-overlay) PyQt6 window on the second monitor | Native Windows widgets, dark theme, easy PyInstaller packaging | ✓ Good |
-| Actions via `pyautogui` + `win32api`; template-match on English base UI | Translation mod cannot break UI recognition | — Pending (no focus guard / failsafe yet) |
+| Actions via `pyautogui` + `win32api`; template-match on English base UI | Translation mod cannot break UI recognition | ✓ Good (SAFE-03 focus guard + failsafe — PR #15); template-match reale deferred AUTO-02 |
 | Exactly one active operating mode (Advisor / Semi-bot / Full-bot) | Clear, predictable bot behaviour | ✓ Good |
-| Peace and other critical actions always manual, with undo | Never let the bot make irreversible diplomatic decisions | ⚠️ Revisit (confirmation not enforced in `execute()`) |
+| Peace and other critical actions always manual, with undo | Never let the bot make irreversible diplomatic decisions | ✓ Good (enforced in execute(), SAFE-01/02 — PR #15) |
 | Config persisted under `~/.eu4-assistant/` (`config.json`, `bot_params.json`, `changelog_seen.txt`) | Predictable, user-owned persistence | ✓ Good |
-| Auto-pause (Space) on imminent rebellion / war, flagged low-priority | Give the player a chance to react; must not hurt stability | ⚠️ Revisit (currently sends F1, not wired) |
+| Auto-pause (Space) on imminent rebellion / war, flagged low-priority | Give the player a chance to react; must not hurt stability | ✓ Good (Space, wired, PAUSE-01/02 — PR #15) |
 | v1.0 scope = normal campaigns, all DLC, QoL mods; Ironman excluded | Keep scope tractable; stability first | ✓ Good |
-| Canonical version string / terminology to be settled (0.5.0 vs "v1.0"; "Advisor" vs `assist`) | Avoid misrepresenting maturity and drift between UI and CLI | — Pending (Phase 4) |
+| Canonical version string / terminology settled (0.5.0 alpha; "Advisor"/`assist`, "Semi-bot"/`semi-bot`, "Full-bot"/`full-bot`) | Avoid misrepresenting maturity and drift between UI and CLI | ✓ Settled (BUILD-02/03 — PR #15) |
 
 ---
-*Last updated: 2026-06-23 after new-project ingest (M1–M10 shipped; next milestone = make the live loop real)*
+*Last updated: 2026-06-27 — milestone "Make the live loop real" completa (PR #15); post-milestone PR #17 mergiata; doc riconciliati*

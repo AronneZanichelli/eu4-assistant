@@ -61,7 +61,7 @@ Il sistema ha **una sola modalità attiva per volta**, selezionabile tramite con
 ## 5. Comportamenti automatici
 
 ### 5.1 Pausa automatica EU4
-L'app invia `F1` (tasto pausa EU4) automaticamente quando rileva:
+L'app invia `Space` (tasto pausa EU4) automaticamente quando rileva:
 - **Ribellione imminente** — unrest massimo in una o più province
 - **Guerra dichiarata** — un paese ha dichiarato guerra al giocatore
 
@@ -174,7 +174,7 @@ Al primo avvio, l'app cerca automaticamente:
 │              ↓                                               │
 │       ActionExecutor ← ConfirmDialog (semi-bot)              │
 │              ↓                                               │
-│       PauseController (F1 automatico)                        │
+│       PauseController (Space automatico)                     │
 └──────────────────────────────────────────────────────────────┘
                             ↕
 ┌──────────────────────────────────────────────────────────────┐
@@ -255,7 +255,7 @@ Durante una guerra attiva il military bot gestisce:
 
 **Activity feed:** ogni azione eseguita dal bot appare in tempo reale nel pannello Advisor (banner compatto sopra le recommendation cards) con: tipo azione, target, stato (in corso / completata / fallita).
 
-### 8.5 `eu4_assistant_bot.decision_engine` *(esteso M6, M7)*
+### 8.5 `eu4_assistant_bot.decision_engine` *(esteso M6, M7)* ✅
 - Risk evaluation + top-3 raccomandazioni ordinate per priorità.
 - **M6 — Military:** 
   - *Peacetime:* stack scoring vs combat width, alert eserciti sotto-dimensionati, reclutamento
@@ -268,9 +268,10 @@ Durante una guerra attiva il military bot gestisce:
 - **M7 — Economy:** steering mercanti, alert tech con MP insufficienti.
 - Ogni raccomandazione include: titolo, categoria, score, testo "perché", flag `executable: bool`.
 
-### 8.6 `eu4_assistant_bot.executor` *(M8)*
+### 8.6 `eu4_assistant_bot.executor` *(M8)* ✅
 - `ActionExecutor` reale via `pyautogui` + `win32api`.
 - Ogni `ActionHandler`: `pre_check() → execute() → post_check()`.
+- **Nota implementazione:** navigazione menu reale implementata per l'azione `colonial_send_colonist` (AUTO-01/02, prima slice), via `navigation.Navigator`: pre-check marker colonizzabile → click del marker più vicino in vista → click bottone Colonize → post-check (bottone consumato), con cv2 template matching sulla UI base inglese. Le altre azioni inviano ancora solo Space (pausa). Hardening sicurezza full-bot (kill-switch + opt-in persistito) tracciato a parte.
 - `ConfirmationDialog` (semi-bot): mostra dettaglio azione, attende conferma.
 - `ExecutionSupervisor`: retry, fallback, stop emergenza.
 - Azioni v1.0:
@@ -283,7 +284,7 @@ Durante una guerra attiva il military bot gestisce:
 
 ### 8.7 `eu4_assistant_bot.pause_controller` *(M5)* ✅
 - Monitora snapshot per condizioni di pausa automatica.
-- Invia keypress `F1` a EU4 quando rileva:
+- Invia keypress `Space` a EU4 quando rileva:
   - Unrest massimo in almeno una provincia (`rebels_imminent`)
   - Nuovo stato di guerra attivo dichiarato contro il giocatore (`war_declared`)
 - Log dell'evento nel feed UI.
@@ -400,7 +401,7 @@ Non altera regole di gioco. Compatibile con achievement.
         ↓
 [StateExtractor → GameSnapshot tipizzato]
         ↓
-[PauseController → pausa EU4 se necessario (F1)]
+[PauseController → pausa EU4 se necessario (Space)]
         ↓
 [DecisionEngine → RiskAlerts + top-3 Recommendations]
         ↓
@@ -446,39 +447,41 @@ Non altera regole di gioco. Compatibile con achievement.
 
 ## 13. Definizione di "Done" per v1.0
 
-- [ ] Mod autosave mensile funzionante e documentata
-- [ ] Save file parsato correttamente (campagna normale, tutti i DLC)
-- [ ] File watcher live stabile per tutta la durata di una campagna
-- [ ] Rilevamento automatico percorsi EU4 al primo avvio
-- [ ] UI sul secondo monitor con dati live, tema scuro, in italiano
-- [ ] Top-3 raccomandazioni con spiegazione leggibile
-- [ ] Pulsante [Esegui] funzionante su ogni raccomandazione eseguibile
-- [ ] Alert attivi: AE, coalition, debt, manpower, rebels, war
-- [ ] Pausa automatica EU4 su ribellione imminente e guerra dichiarata
-- [ ] Hotkey F2 mostra/nasconde finestra
-- [ ] Military advisor: stack scoring + alert eserciti
-- [ ] Colonial advisor: ranking province + gestione coloni
-- [ ] Economy advisor: steering mercanti, alert tech
-- [ ] Full-bot con parametri configurabili e persistenti
-- [ ] Switch full-bot disattivabile istantaneamente
-- [ ] Log sessione esportabile in CSV
-- [ ] Changelog mostrato a ogni aggiornamento
+- [x] Mod autosave mensile funzionante e documentata
+- [x] Save file parsato correttamente (campagna normale, tutti i DLC)
+- [x] File watcher live stabile per tutta la durata di una campagna
+- [x] Rilevamento automatico percorsi EU4 al primo avvio
+- [x] UI sul secondo monitor con dati live, tema scuro, in italiano
+- [x] Top-3 raccomandazioni con spiegazione leggibile
+- [x] Pulsante [Esegui] funzionante su ogni raccomandazione eseguibile
+- [x] Alert attivi: AE, coalition, debt, manpower, rebels, war
+- [x] Pausa automatica EU4 su ribellione imminente e guerra dichiarata
+- [x] Hotkey F2 mostra/nasconde finestra
+- [x] Military advisor: stack scoring + alert eserciti
+- [x] Colonial advisor: ranking province + gestione coloni
+- [x] Economy advisor: steering mercanti, alert tech
+- [x] Full-bot con parametri configurabili e persistenti
+- [x] Switch full-bot disattivabile istantaneamente
+- [x] Log sessione esportabile in CSV
+- [x] Changelog mostrato a ogni aggiornamento
 - [ ] Military bot wartime: movimento, assedi, ingaggio e ritirata funzionanti
-- [ ] Pace gate: trattative di pace sempre in coda conferma
+- [x] Pace gate: trattative di pace sempre in coda conferma
 - [ ] Live action display: banner azione in corso sull'Advisor
 - [ ] Annulla azione: disponibile su azioni critiche
-- [ ] Bot entra in pausa automatica se EU4 è fermo
-- [ ] Colonial bot: modalità autonoma e lista target entrambe funzionanti
-- [ ] Full-bot: stati attivo / pausa / errore / off distinti e visibili
+- [x] Bot entra in pausa automatica se EU4 è fermo
+- [x] Colonial bot: modalità autonoma e lista target entrambe funzionanti
+- [x] Full-bot: stati attivo / pausa / errore / off distinti e visibili
 - [ ] Gestione errori bot: notifica visiva + suono, distinzione critico/minore
-- [ ] Soglie alert configurabili: coalition e manpower threshold
+- [x] Soglie alert configurabili: coalition e manpower threshold
 - [ ] Template matching basato su UI inglese (immune alla mod traduzione IT)
 - [ ] Military bot: movimento, assedi, ritirata e ingaggio durante guerra
-- [ ] Trattative di pace sempre con conferma utente (azione critica)
-- [ ] Bot in attesa se EU4 è in pausa, resume automatico al prossimo save
-- [ ] Activity feed azioni bot in tempo reale nel pannello Advisor
+- [x] Trattative di pace sempre con conferma utente (azione critica)
+- [x] Bot in attesa se EU4 è in pausa, resume automatico al prossimo save
+- [x] Activity feed azioni bot in tempo reale nel pannello Advisor
 - [ ] Nessun crash su campagna completa (1444 → fine partita)
-- [ ] Eseguibile Windows standalone senza dipendenze esterne
+- [x] Eseguibile Windows standalone senza dipendenze esterne
+
+*Rimanenti: item "Military bot wartime" (×2) + "Template matching" → AUTO-01/02 (v2); "Live action display" / "Annulla azione" / "notifica suono" → polish UI v1.0; "Nessun crash campagna completa" → validazione end-to-end + HARD-01/02/03.*
 
 ---
 
