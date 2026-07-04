@@ -3,6 +3,7 @@
 from eu4_assistant_bot.config import BotMode
 from eu4_assistant_bot.executor import ActionExecutor
 from eu4_assistant_bot.models import ActionPlan
+from eu4_assistant_bot.navigation import TemplateMatch
 
 
 # ── simulate() tests (unchanged) ──────────────────────────────────────────────
@@ -189,3 +190,239 @@ def test_pause_game_returns_bool() -> None:
     result = ActionExecutor()._pause_game()
 
     assert isinstance(result, bool)
+
+
+# ── colonize navigation (AUTO-01/02 first slice) ───────────────────────────────
+
+_MARKER = TemplateMatch(x=100, y=100, confidence=0.9)
+_BUTTON = TemplateMatch(x=200, y=200, confidence=0.95)
+
+
+class _FakeImage:
+    """Stand-in for a Pillow screenshot: exposes only ``.size`` like the real one."""
+
+    def __init__(self, size: tuple[int, int] = (1920, 1080)) -> None:
+        self.size = size
+
+
+class _FakeNavigator:
+    """Recorder navigator: scripts capture/find/click returns, records calls.
+
+    Mirrors the DI-over-mocking pattern of ``_recorder`` above — no pyautogui/cv2
+    is touched, so the colonize orchestration is tested fully headless.
+    """
+
+    def __init__(
+        self,
+        *,
+        capture_returns: list | None = None,
+        find_returns: dict[str, list[list[TemplateMatch]]] | None = None,
+        click_returns: bool | list[bool] = True,
+        image_size: tuple[int, int] = (1920, 1080),
+    ) -> None:
+        self._capture_returns = list(capture_returns) if capture_returns is not None else None
+        self._find_returns = {k: list(v) for k, v in (find_returns or {}).items()}
+        self._click_returns = click_returns
+        self._image_size = image_size
+        self.captures: list = []
+        self.finds: list[str] = []
+        self.clicks: list[tuple[int, int]] = []
+
+    def capture(self, region=None):  # noqa: ANN001, ANN201
+        self.captures.append(region)
+        if self._capture_returns is None:
+            return _FakeImage(self._image_size)
+        return self._capture_returns.pop(0)
+
+    def find(self, template_name: str, image, threshold: float = 0.8) -> list[TemplateMatch]:  # noqa: ANN001
+        self.finds.append(template_name)
+        queue = self._find_returns.get(template_name)
+        if queue:
+            return queue.pop(0)
+        return []
+
+    def click(self, x: int, y: int) -> bool:
+        self.clicks.append((x, y))
+        if isinstance(self._click_returns, list):
+            return self._click_returns.pop(0)
+        return self._click_returns
+
+
+def _colonize_plan() -> ActionPlan:
+    return ActionPlan(
+        id="col:75",
+        action_type="colonial_send_colonist",
+        priority=0.75,
+        confidence=0.7,
+        expected_outcome={"target_metric": "colonists_free", "current_value": 1.0},
+        requires_confirmation=True,
+    )
+
+
+def _colonize_executor(
+    nav: _FakeNavigator, sleeps: list[float] | None = None
+) -> ActionExecutor:
+    """Executor with a recording no-op sleeper so tests never really sleep."""
+    recorded = sleeps if sleeps is not None else []
+    return ActionExecutor(
+        focus_check=lambda: True, navigator=nav, sleeper=recorded.append
+    )
+
+
+def test_colonize_happy_path_clicks_marker_then_button() -> None:
+    """colonial_send_colonist: marker → colonize button → consumed = colonize_started."""
+    nav = _FakeNavigator(
+        find_returns={
+            "colonizable_marker": [[_MARKER]],
+            "colonize_button": [[_BUTTON], []],  # present (pre-check), absent (post-check)
+        }
+    )
+    out = _colonize_executor(nav).execute(
+        [_colonize_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "colonize_started"
+    assert out[0].reason == "colonist_sent"
+    assert nav.clicks == [(100, 100), (200, 200)]  # marker then button, in order
+
+
+def test_colonize_no_marker_aborts_precheck() -> None:
+    """No colonizable marker visible → precheck_failed, no clicks."""
+    nav = _FakeNavigator(find_returns={"colonizable_marker": [[]]})
+    out = _colonize_executor(nav).execute(
+        [_colonize_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "precheck_failed"
+    assert out[0].reason == "no_colonizable_marker_visible"
+    assert nav.clicks == []
+
+
+def test_colonize_no_button_aborts_after_marker_click() -> None:
+    """Marker clicked but no colonize button (false marker) → precheck_failed."""
+    nav = _FakeNavigator(
+        find_returns={"colonizable_marker": [[_MARKER]], "colonize_button": [[]]}
+    )
+    out = _colonize_executor(nav).execute(
+        [_colonize_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "precheck_failed"
+    assert out[0].reason == "colonize_button_absent"
+    assert nav.clicks == [(100, 100)]  # only the marker was clicked
+
+
+def test_colonize_postcheck_mismatch_when_button_persists() -> None:
+    """Button still present on every post-check attempt → postcheck_mismatch."""
+    nav = _FakeNavigator(
+        find_returns={
+            "colonizable_marker": [[_MARKER]],
+            # pre-check + both post-check attempts: button never consumed
+            "colonize_button": [[_BUTTON], [_BUTTON], [_BUTTON]],
+        }
+    )
+    sleeps: list[float] = []
+    out = _colonize_executor(nav, sleeps).execute(
+        [_colonize_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "postcheck_mismatch"
+    assert out[0].reason == "colonize_not_started"
+    assert nav.clicks == [(100, 100), (200, 200)]
+    assert len(sleeps) == 2  # waited before both post-check attempts
+
+
+def test_colonize_postcheck_succeeds_on_retry() -> None:
+    """Button still present on the first post-check but consumed on the retry."""
+    nav = _FakeNavigator(
+        find_returns={
+            "colonizable_marker": [[_MARKER]],
+            # pre-check, first post-check (still there), retry (consumed)
+            "colonize_button": [[_BUTTON], [_BUTTON], []],
+        }
+    )
+    sleeps: list[float] = []
+    out = _colonize_executor(nav, sleeps).execute(
+        [_colonize_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "colonize_started"
+    assert sleeps == [0.5, 0.5]
+
+
+def test_colonize_targets_nearest_using_image_dims() -> None:
+    """The marker nearest the *captured image* centre wins, not a hardcoded 1080p centre."""
+    centre_1440p = TemplateMatch(x=1280, y=720, confidence=0.85)
+    centre_1080p = TemplateMatch(x=960, y=540, confidence=0.9)
+    nav = _FakeNavigator(
+        image_size=(2560, 1440),
+        find_returns={
+            "colonizable_marker": [[centre_1080p, centre_1440p]],
+            "colonize_button": [[_BUTTON], []],
+        },
+    )
+    out = _colonize_executor(nav).execute(
+        [_colonize_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "colonize_started"
+    assert nav.clicks[0] == (1280, 720)  # true centre of the 1440p capture
+
+
+def test_colonize_degrades_when_backend_unavailable() -> None:
+    """Capture returning None (no backend) → advisory result, never raises."""
+    nav = _FakeNavigator(capture_returns=[None])
+    out = _colonize_executor(nav).execute(
+        [_colonize_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "executed_no_nav"
+    assert out[0].reason == "navigation_backend_unavailable"
+    assert nav.clicks == []
+
+
+def test_colonize_blocked_when_not_focused() -> None:
+    """Focus guard: not focused → blocked, no capture/click at all."""
+    nav = _FakeNavigator()
+    out = ActionExecutor(focus_check=lambda: False, navigator=nav).execute(
+        [_colonize_plan()], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "blocked"
+    assert out[0].reason == "eu4_not_focused"
+    assert nav.captures == []
+    assert nav.clicks == []
+
+
+def test_colonize_still_gated_without_confirm() -> None:
+    """The safety gate is unchanged: no confirm → blocked, navigator untouched."""
+    nav = _FakeNavigator()
+    out = _colonize_executor(nav).execute([_colonize_plan()], mode=BotMode.SEMI_BOT)
+
+    assert out[0].status == "blocked"
+    assert out[0].reason == "confirmation_required"
+    assert nav.captures == []
+    assert nav.clicks == []
+
+
+def test_colonize_assist_mode_is_advisory_only() -> None:
+    """ASSIST mode never navigates, even for the colonize action."""
+    nav = _FakeNavigator()
+    out = _colonize_executor(nav).execute([_colonize_plan()], mode=BotMode.ASSIST)
+
+    assert out[0].status == "advisory"
+    assert nav.captures == []
+    assert nav.clicks == []
+
+
+def test_non_colonize_action_still_pauses() -> None:
+    """A non-colonize action ignores the navigator and pauses via Space (unchanged)."""
+    sent, sender = _recorder()
+    nav = _FakeNavigator()
+    out = ActionExecutor(key_sender=sender, focus_check=lambda: True, navigator=nav).execute(
+        [_make_plan("economy_stabilize_budget")], mode=BotMode.SEMI_BOT, confirm=lambda _p: True
+    )
+
+    assert out[0].status == "executed"
+    assert sent == ["space"]
+    assert nav.captures == []  # navigator untouched for non-colonize actions

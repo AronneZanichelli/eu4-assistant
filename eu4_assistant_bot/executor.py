@@ -5,17 +5,29 @@ items and returns :class:`ExecutionResult` objects.
 
 * ``simulate()`` — original simulation-only path (kept for tests and ASSIST mode).
 * ``execute()`` — M8 real path: pauses the game via pyautogui and logs advisory.
+  The ``colonial_send_colonist`` action additionally performs real in-game
+  colonize navigation (AUTO-01/02) via :class:`~eu4_assistant_bot.navigation.Navigator`.
   Falls back gracefully if pyautogui is not installed (``pip install eu4-assistant-bot[bot]``).
 """
 
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Callable
 
 from .config import BotMode
 from .models import ActionPlan
+from .navigation import Navigator, nearest_to_center
+
+# Action type that drives real in-game colonize navigation (AUTO-01 first slice).
+_COLONIZE_ACTION: str = "colonial_send_colonist"
+
+# Post-check pacing: the game UI takes a moment to consume the Colonize button
+# after the click, so wait between capture attempts before declaring a mismatch.
+_POSTCHECK_DELAY_S: float = 0.5
+_POSTCHECK_ATTEMPTS: int = 2
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +109,13 @@ class ActionExecutor:
         self,
         key_sender: Callable[[str], bool] | None = None,
         focus_check: Callable[[], bool] | None = None,
+        navigator: Navigator | None = None,
+        sleeper: Callable[[float], None] | None = None,
     ) -> None:
         self._key_sender = key_sender or _default_key_sender
         self._focus_check = focus_check or _default_focus_check
+        self._navigator = navigator or Navigator()
+        self._sleeper = sleeper or time.sleep
 
     def simulate(self, plans: list[ActionPlan], mode: BotMode) -> list[ExecutionResult]:
         """Original simulation path — used for testing and ASSIST mode advisory."""
@@ -153,6 +169,10 @@ class ActionExecutor:
         caller.  Before any keystroke the foreground window is checked and
         ``pyautogui.FAILSAFE`` is enabled.  Falls back gracefully if
         ``pyautogui`` is not installed.
+
+        The ``colonial_send_colonist`` action runs real colonize navigation
+        (see :meth:`_execute_colonize`) instead of a plain pause; every other
+        action type still pauses the game (``_pause_game``).
         """
         results: list[ExecutionResult] = []
 
@@ -193,6 +213,9 @@ class ActionExecutor:
             # SEMI_BOT / FULL_BOT: interact with game
             description = _ACTION_DESCRIPTIONS.get(plan.action_type, plan.action_type)
             logger.info("EXECUTE [%s]: %s", plan.action_type, description)
+            if plan.action_type == _COLONIZE_ACTION:
+                results.append(self._execute_colonize(plan))
+                continue
             paused = self._pause_game()
             results.append(
                 ExecutionResult(
@@ -217,6 +240,84 @@ class ActionExecutor:
             logger.warning("EU4 window not focused — skipping keystroke (safety guard).")
             return False
         return self._key_sender("space")
+
+    def _execute_colonize(self, plan: ActionPlan) -> ExecutionResult:
+        """Real in-game colonize navigation (AUTO-01/AUTO-02 first slice).
+
+        Implements the per-action contract: pre-check (a colonizable marker is
+        visible) → execute (click the marker nearest the screen centre, then the
+        Colonize button) → post-check (the Colonize button is consumed once
+        colonization starts) → fallback+log on any mismatch.
+
+        Targeting is "nearest in view" (design §6.5): the bot clicks the
+        colonizable marker closest to the screen centre.  ``rank_colonizable``'s
+        specific economic pick is advisory only and is not consulted here.
+
+        Never raises — degrades to an advisory result when a navigation backend
+        (cv2 / pyautogui) is unavailable.
+        """
+
+        def _result(status: str, reason: str) -> ExecutionResult:
+            return ExecutionResult(
+                plan_id=plan.id,
+                action_type=plan.action_type,
+                status=status,
+                reason=reason,
+                confidence=plan.confidence,
+                simulated_effects=self._simulate_effects(plan),
+            )
+
+        # Focus guard (SAFE-03): never click into another application.
+        if not self._focus_check():
+            logger.warning("COLONIZE: EU4 window not focused — skipping (safety guard).")
+            return _result("blocked", "eu4_not_focused")
+
+        nav = self._navigator
+
+        # Pre-check 1: a colonizable marker must be visible on screen.
+        img = nav.capture()
+        if img is None:
+            logger.warning("COLONIZE: screen capture unavailable — advisory only.")
+            return _result("executed_no_nav", "navigation_backend_unavailable")
+        markers = nav.find("colonizable_marker", img)
+        if not markers:
+            logger.info("COLONIZE: no colonizable marker visible — aborting.")
+            return _result("precheck_failed", "no_colonizable_marker_visible")
+
+        # Click the marker nearest the screen centre ("nearest in view").
+        # The captured image spans the screen, so its size gives the real centre.
+        target = nearest_to_center(markers, *img.size)
+        if target is None or not nav.click(target.x, target.y):
+            logger.warning("COLONIZE: failed to click colonizable marker.")
+            return _result("executed_no_nav", "marker_click_failed")
+
+        # Pre-check 2: the province panel must offer the Colonize button.  An
+        # absent button means the marker match was a false positive (self-correcting).
+        panel = nav.capture()
+        buttons = nav.find("colonize_button", panel) if panel is not None else []
+        if not buttons:
+            logger.info("COLONIZE: colonize button absent in panel — aborting.")
+            return _result("precheck_failed", "colonize_button_absent")
+        if not nav.click(buttons[0].x, buttons[0].y):
+            logger.warning("COLONIZE: failed to click colonize button.")
+            return _result("executed_no_nav", "button_click_failed")
+
+        # Post-check (AUTO-02): success is inferred from observed game state, not
+        # from whether click() raised.  The Colonize button is consumed once
+        # colonization begins, so its continued presence means nothing happened.
+        # The UI takes a moment to consume it, so wait and retry before
+        # declaring a mismatch.
+        for _ in range(_POSTCHECK_ATTEMPTS):
+            self._sleeper(_POSTCHECK_DELAY_S)
+            after = nav.capture()
+            if after is None:
+                logger.warning("COLONIZE: post-check capture unavailable — unconfirmed.")
+                return _result("executed_no_nav", "postcheck_capture_unavailable")
+            if not nav.find("colonize_button", after):
+                logger.info("COLONIZE: colonist sent (province panel entered colonization state).")
+                return _result("colonize_started", "colonist_sent")
+        logger.warning("COLONIZE: colonize button still present — colonization not started.")
+        return _result("postcheck_mismatch", "colonize_not_started")
 
     @staticmethod
     def _simulate_effects(plan: ActionPlan) -> dict[str, float | str]:

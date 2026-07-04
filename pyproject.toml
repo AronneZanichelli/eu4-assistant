@@ -37,6 +37,11 @@ bot = [
     "PyQt6>=6.5,<7.0",
     "pynput>=1.7,<2.0",
     "pyautogui>=0.9,<1.0",
+    # AUTO-01/02 real navigation: cv2 template matching on captured screenshots.
+    # Kept out of [dev] (like pyautogui/pynput) so CI installs on 3.13/3.14.
+    # opencv >=4.10 is the first series with numpy 2.x-compatible wheels.
+    "opencv-python>=4.10,<5.0",
+    "numpy>=1.21",
 ]
 dev = [
     # Test deps only. pynput/pyautogui are optional runtime backends (see [ui]/[bot]),
@@ -56,6 +61,10 @@ Repository = "https://github.com/AronneZanichelli/eu4-assistant"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["eu4_assistant_bot*"]
+
+[tool.setuptools.package-data]
+# Ship the AUTO-01/02 UI templates with the package.
+eu4_assistant_bot = ["templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
