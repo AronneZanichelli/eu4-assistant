@@ -323,3 +323,46 @@ class TestMainWindow:
         reloaded = MainWindow(data_dir=tmp_path)
         assert reloaded._mode == BotMode.SEMI_BOT
         assert reloaded.advisor.bot_params.get_params(reloaded._mode).max_recruits_per_cycle == 3
+
+    def test_push_log_routes_through_signal(self, qapp: QApplication) -> None:
+        """push_log goes through log_received (thread-safe), never straight to the widget."""
+        win = MainWindow()
+        win.push_log(LogLevel.DECISION, "via push_log")
+        assert win.log._entries[-1][1:] == (LogLevel.DECISION, "via push_log")
+        # Emitting the signal directly is what a worker-thread call boils down to.
+        win.log_received.emit(LogLevel.ALERT, "via signal")
+        assert win.log._entries[-1][1:] == (LogLevel.ALERT, "via signal")
+
+    def test_execute_colonize_started_logged_as_action(self, qapp: QApplication) -> None:
+        """A colonize_started result is an ACTION log entry, not an ALERT."""
+        from eu4_assistant_bot.executor import ExecutionResult
+
+        class _FakeExecutor:
+            def execute(self, plans, mode, confirm=None):  # noqa: ANN001, ANN202
+                return [
+                    ExecutionResult(
+                        plan_id="c:75",
+                        action_type="colonial_send_colonist",
+                        status="colonize_started",
+                        reason="colonist_sent",
+                        confidence=0.7,
+                    )
+                ]
+
+        win = MainWindow()
+        win.set_mode(BotMode.SEMI_BOT)
+        win._executor = _FakeExecutor()
+        win._on_plans(
+            [
+                ActionPlan(
+                    id="c:75",
+                    action_type="colonial_send_colonist",
+                    priority=0.75,
+                    confidence=0.7,
+                    expected_outcome={"target_metric": "colonists_free"},
+                    requires_confirmation=True,
+                )
+            ]
+        )
+        win._on_execute_requested("colonial")
+        assert win.log._entries[-1][1] == LogLevel.ACTION

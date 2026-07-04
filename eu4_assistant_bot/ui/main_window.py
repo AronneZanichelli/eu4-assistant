@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
     recommendations_received = pyqtSignal(object)  # list[Recommendation]
     alerts_received = pyqtSignal(object)           # RiskAlerts
     plans_received = pyqtSignal(object)            # list[ActionPlan]
+    log_received = pyqtSignal(object, str)         # (LogLevel, message)
     toggle_requested = pyqtSignal()                # F2 global hotkey (thread-safe toggle)
 
     def __init__(self, parent: QWidget | None = None, data_dir: Path | None = None) -> None:
@@ -102,6 +103,7 @@ class MainWindow(QMainWindow):
         self.recommendations_received.connect(self._on_recommendations)
         self.alerts_received.connect(self._on_alerts)
         self.plans_received.connect(self._on_plans)
+        self.log_received.connect(self._on_log)
         self.toggle_requested.connect(self.toggle_visibility)
         self.advisor.execute_requested.connect(self._on_execute_requested)
         self.advisor.mode_changed.connect(self.set_mode)
@@ -141,7 +143,8 @@ class MainWindow(QMainWindow):
         self.plans_received.emit(plans)
 
     def push_log(self, level: LogLevel, message: str) -> None:
-        self.log.add_entry(level, message)
+        """Thread-safe: emit signal to append a log entry from any thread."""
+        self.log_received.emit(level, message)
 
     def set_mode(self, mode: BotMode) -> None:
         """Set execution mode, sync the selector, and refresh the bot-state indicator."""
@@ -185,6 +188,10 @@ class MainWindow(QMainWindow):
     def _on_plans(self, plans: list[ActionPlan]) -> None:
         self._current_plans = plans
 
+    @pyqtSlot(object, str)
+    def _on_log(self, level: LogLevel, message: str) -> None:
+        self.log.add_entry(level, message)
+
     @pyqtSlot(str)
     def _on_execute_requested(self, category: str) -> None:
         """Handle Esegui button click from any recommendation card."""
@@ -206,7 +213,7 @@ class MainWindow(QMainWindow):
             if result.status == "blocked":
                 self.push_log(LogLevel.DECISION, f"[{result.action_type}] esecuzione annullata (conferma negata).")
                 continue
-            level = LogLevel.ACTION if result.status in ("executed", "executed_no_pause", "advisory") else LogLevel.ALERT
+            level = LogLevel.ACTION if result.status in ("executed", "executed_no_pause", "advisory", "colonize_started") else LogLevel.ALERT
             self.push_log(level, f"[{result.action_type}] {result.status} — {result.reason}")
         self._reflect_bot_state(results)
 

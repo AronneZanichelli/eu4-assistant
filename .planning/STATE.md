@@ -2,19 +2,20 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-23)
+See: .planning/PROJECT.md (updated 2026-06-27)
 
 **Core value:** When EU4 writes an autosave, the app parses it and refreshes the UI with risk alerts + top-3 recommendations within a few seconds, with zero unhandled errors.
-**Current focus:** Phase 1 — Restore the Live Watch Loop
+**Current focus:** Nessuna milestone attiva — slice colonista AUTO-01/02 implementata (navigation.Navigator + _execute_colonize, in PR); prossimo: milestone GSD v2 con safety hardening (kill-switch + opt-in FULL_BOT) come fase 1
 
 ## Current Position
 
-Phase: 1 of 4 (Restore the Live Watch Loop)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-06-23 — Roadmap created from ingest; M1–M10 confirmed shipped, live loop confirmed broken
+Milestone "Make the live loop real": COMPLETA (4/4 fasi, PR #15, 2026-06-24)
+Post-milestone: full-bot control surface + colonial province ranking mergiato (PR #17, 2026-06-27)
+Post-milestone 2: slice colonista AUTO-01/02 (navigation.py, _execute_colonize, fix review: contiguità cv2, retry post-check, dims reali, push_log thread-safe) — branch feat/auto-colonize-slice
+Status: Nessuna milestone attiva
+Last activity: 2026-07-04 — slice AUTO-01/02 consolidata con fix da review interno; suite verde
 
-Progress: [░░░░░░░░░░] 0% (new milestone; M1–M10 already shipped as prior work)
+Progress: [██████████] 100% (milestone completa; M1–M10 + live loop + control surface shipped)
 
 ## Performance Metrics
 
@@ -44,7 +45,9 @@ Recent decisions affecting current work:
 
 - [Ingest]: 10 SPEC-level design decisions treated as binding-but-not-locked (no ADRs).
 - [Ingest]: M1–M10 are Validated (shipped, 132 unit tests); the next milestone repairs the loop that ties them together.
-- [Phase 4]: Canonical version string and mode terminology to be settled (0.5.0 vs "v1.0"; "Advisor" vs `assist`).
+- [Phase 4]: Canonical version string settled at 0.5.0 (alpha); mode terminology mapped (Advisor/`assist`, Semi-bot/`semi-bot`, Full-bot/`full-bot`) — BUILD-02/03 done (PR #15).
+- [Post-M]: PR #17 (2026-06-27) — full-bot control surface (Design A2: 4 states, params panel, persistent BotParams) + colonial province ranking + COLONIST_IDLE fix. 181 test.
+- [Post-M2]: 2026-07-04 — slice colonista AUTO-01/02: Navigator (capture→match→click, lazy/soft-fail), contratto pre-check→execute→post-check con retry, targeting "nearest in view" su dims reali. Analisi profonda progetto: findings v2 registrati nel piano (fedeltà save reali, perf parser, DEBT confermati).
 
 ### Pending Todos
 
@@ -56,13 +59,9 @@ None yet.
 
 [Issues that affect future work]
 
-- **HIGH (Phase 1):** Live UI pipeline calls `ClausewitzTextParser().parse(...)` at `main.py:201`; class only defines `parse_text()`/`parse_file()` — every save raises `AttributeError`. Flagship feature broken.
-- **HIGH (Phase 1):** Over-broad `except (SaveFormatError, Exception)` at `main.py:203` swallows the bug (and any internal error) into one log line.
-- **MED (Phase 2):** Auto-pause sends `F1` (`pause_controller.py:73`); EU4 pause is Space (`executor.py:141`) — the two disagree.
-- **Wiring (Phase 2):** `PauseController` and `ui/hotkey.py` `HotkeyManager` are unit-tested but never instantiated in `run_with_ui()` — auto-pause and F2 do nothing end-to-end.
-- **HIGH safety (Phase 3):** FULL_BOT executes with no confirmation; `requires_confirmation` ignored in `execute()`; no focus guard / `pyautogui.FAILSAFE`.
-- **MED (Phase 4):** CI tests 3.11/3.12 but runtime interpreter is 3.14; `pynput` top-level import in `ui/hotkey.py` can break the whole UI import.
-- **Coverage:** No test covers `run_with_ui`/`_process_save`/`_watcher_loop`; parser→extractor integration untested (extractor fed a hand-built dict only).
+Nessun blocker aperto — live-loop/safety/version/wiring risolti da PR #15 (fasi 1-4); coverage live aggiunta (integration test `_process_save`, parser→extractor, safety gate).
+
+Gap aperti tracciati come v2 (non bloccanti per funzionamento corrente): AUTO-01/02 (azioni reali in `execute()`), HARD-01/02/03 (hardening parser), DEBT-01/02/03 (tech debt). Vedi Deferred Items.
 
 ## Deferred Items
 
@@ -70,12 +69,14 @@ Items acknowledged and carried forward:
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Automation | Real menu-navigation actions (execute() only sends pause) | v2 (AUTO-01/02) | 2026-06-23 |
-| Parser | Recursion/size guards, streaming, atomic-rename handling | v2 (HARD-01/02/03) | 2026-06-23 |
-| Tech debt | Remove legacy parser alias; consolidate coercion/adapters; lockfile | v2 (DEBT-01/02/03) | 2026-06-23 |
+| Automation | AUTO-01/02: slice colonize FATTA; restano asset live (template PNG su Windows+EU4) e altre categorie azione | v2 (in corso) | 2026-06-23 |
+| Safety | Kill-switch hotkey + opt-in FULL_BOT persistito (precondizione uso unattended) | v2 fase 1 | 2026-07-04 |
+| Parser | Recursion/size guards, streaming, atomic-rename handling; perf su gamestate reali 25-80MB | v2 (HARD-01/02/03) | 2026-06-23 |
+| Fidelity | Fixture da autosave reale + audit chiavi (stability/prestige per-country, income/loan) | v2 | 2026-07-04 |
+| Tech debt | Remove legacy parser (dead code confermato); consolidate coercion/adapters; lockfile | v2 (DEBT-01/02/03) | 2026-06-23 |
 
 ## Session Continuity
 
-Last session: 2026-06-23 21:00
-Stopped at: Wrote PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md from ingest intel + codebase map.
+Last session: 2026-07-04
+Stopped at: Slice AUTO-01/02 consolidata (fix review) su branch feat/auto-colonize-slice, PR in apertura; prossimo: gsd-new-milestone v2 (fase 1 = safety hardening).
 Resume file: None

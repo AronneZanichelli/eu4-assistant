@@ -2,7 +2,7 @@
 
 ## Overview
 
-Milestones M1–M10 are built and unit-tested (132 tests), but the codebase map
+Milestones M1–M10 are built and unit-tested (181 tests after PR #15/#17), but the codebase map
 (2026-06-23) found the flagship loop is broken: the live watch pipeline calls a
 parser method that does not exist, an over-broad `except` hides it, auto-pause and
 the F2 hotkey are implemented yet never wired in, and the bot's safety gate is not
@@ -84,3 +84,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 2. Wire Auto-Pause & Global Hotkey | 1/1 | Done (PR #15) | 2026-06-24 |
 | 3. Enforce the Bot-Safety Gate | 1/1 | Done (PR #15) | 2026-06-24 |
 | 4. Reconcile Version & CI Drift | 1/1 | Done (PR #15) | 2026-06-24 |
+
+## Post-Milestone
+
+PR #16 (cleanup, dead-code removal) + **PR #17 full-bot control surface + colonial province ranking**, mergiata 2026-06-27 (merge `2251a47`), oltre le 4 fasi della milestone. 181 test verdi.
